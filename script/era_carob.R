@@ -202,10 +202,10 @@ dt$Till.Level.Name <- NULL
 
 proc <- function(f){
    
-   d <- d[d$B_code==f,]
+   dt <- dt[dt$B_code==f,]
    
 ### Adding  step in the data to facilitate the transformation from long to wide 
-   df <- d %>%
+   df <- dt %>%
       group_by(variable) %>%
       mutate(id = row_number()) %>%
       ungroup()
@@ -222,7 +222,7 @@ proc <- function(f){
 }
 
 #### Append the data base on the study (B_code)
-ff <- unique(d$B_code)
+ff <- unique(dt$B_code)
 dw <- lapply(ff, proc)
 
 dw <- do.call(carobiner::bindr, dw)
@@ -236,7 +236,7 @@ i <- which(names(df) %in% c("Crop_Yield", "Soil_Moisture", "Soil_Organic_Carbon"
 names(df)[i] <-  c("yield","soil_WHC_sat","soil_SOC", "soil_N","soil_CEC", "fwy_residue", "fwy_total", "soil_SOM", "soil_NH4", "soil_NO3")
 
 ### Keep suitable variables for carob 
-df <- cbind(df[,c(1:36),], df[, c("yield","soil_WHC_sat","soil_SOC", "soil_N","soil_CEC", "fwy_residue", "fwy_total", "soil_SOM", "soil_NH4", "soil_NO3", "Biomass_Yield")])
+#df <- cbind(df[,c(1:36),], df[, c("yield","soil_WHC_sat","soil_SOC", "soil_N","soil_CEC", "fwy_residue", "fwy_total", "soil_SOM", "soil_NH4", "soil_NO3", "Biomass_Yield")])
 
 
 #### Keep only rows with crop yield value 
