@@ -198,14 +198,17 @@ dt <- dt[!is.na(dt$variable), ]
 dt$Till.Level.Name <- NULL
 
 
+### keep only rows with crop
+dc <- dt[!grepl("Animal", dt$product_type),]
+
 #### Transforming response variable from long into wide format 
 
 proc <- function(f){
    
-   dt <- dt[dt$B_code==f,]
+   dc <- dc[dc$B_code==f,]
    
 ### Adding  step in the data to facilitate the transformation from long to wide 
-   df <- dt %>%
+   df <- dc %>%
       group_by(variable) %>%
       mutate(id = row_number()) %>%
       ungroup()
@@ -222,25 +225,74 @@ proc <- function(f){
 }
 
 #### Append the data base on the study (B_code)
-ff <- unique(dt$B_code)
+ff <- unique(dc$B_code)
 dw <- lapply(ff, proc)
 
 dw <- do.call(carobiner::bindr, dw)
 
-#### removing empty columns
-df <- dw[, colSums(!is.na(dw)) > 0]
-df[df=="-9999"] <- NA
 
-### Change the era names code into carob standard names 
-i <- which(names(df) %in% c("Crop_Yield", "Soil_Moisture", "Soil_Organic_Carbon","Soil_Total_Nitrogen","Cation_Exchange_Capacity", "Crop_Residue_Yield","Aboveground_Biomass" , "Soil_Organic_Matter", "Soil_NH4", "Soil_NO3"))
-names(df)[i] <-  c("yield","soil_WHC_sat","soil_SOC", "soil_N","soil_CEC", "fwy_residue", "fwy_total", "soil_SOM", "soil_NH4", "soil_NO3")
+### Change the era names  into carob standard names 
+i <- which(names(dw) %in% c("Crop_Yield", "Soil_Moisture", "Soil_Organic_Carbon","Soil_Total_Nitrogen","Cation_Exchange_Capacity", "Crop_Residue_Yield","Aboveground_Biomass" , 
+                            "Soil_Organic_Matter", "Soil_NH4", "Soil_NO3"))
+names(dw)[i] <-  c("yield","soil_WHC_sat","soil_SOC", "soil_N","soil_CEC", "fwy_residue", "fwy_total", "soil_SOM", "soil_NH4", "soil_NO3")
 
 ### Keep suitable variables for carob 
-#df <- cbind(df[,c(1:36),], df[, c("yield","soil_WHC_sat","soil_SOC", "soil_N","soil_CEC", "fwy_residue", "fwy_total", "soil_SOM", "soil_NH4", "soil_NO3", "Biomass_Yield")])
+Cnms <- names(dc)[!grepl("variable|Value", names(dc))]
+respV <- c("yield", "Biomass_Yield", "fwy_residue","fwy_total", "soil_WHC_sat","soil_N")
+df <- dw[,c(Cnms, respV)]
 
+#### removing empty columns
+df <- df[, colSums(!is.na(df)) > 0]
+df[df=="-9999"] <- NA
 
-#### Keep only rows with crop yield value 
-#df <- df[!is.na(df$yield),]
+### Fixing yield_part 
+
+P <- carobiner::fix_name(df$yield_part)
+P <- gsub("Grain/Seed", "grain", P)
+P <- gsub("Biomass/Fodder - Above Ground", "aboveground biomass", P, fixed = TRUE)
+P <- gsub("Biomass/Fodder - Straw", "aboveground biomass", P, fixed = TRUE)
+P <- gsub("Pods", "pod", P)
+P <- gsub("Haulm", "aboveground biomass", P)
+P <- gsub("Biomass/Fodder - Above + Below Ground", "aboveground biomass", P, fixed = TRUE)
+P <- gsub("Tuber/Root \\(Total Yield\\)", "roots", P)
+P <- gsub("Biomass/Fodder - Stover", "aboveground biomass", P, fixed = TRUE)
+P <- gsub("Bulb", "stems", P)
+P <- gsub("Leaves", "leaves", P)
+P <- gsub("Biomass/Fodder - Stalks", "aboveground biomass", P, fixed = TRUE)
+P <- gsub("Biomass/Fodder", "aboveground biomass", P)
+P <- gsub("Fibre/Lint", "fibre", P)
+P <- gsub("Stalks\\+Leaves" , "leaves", P)
+P <- gsub("Fruit \\(Total Yield\\)", "fruit", P)
+P <- gsub("Fruit \\(Marketable Yield\\)", "fruit", P)
+P <- gsub("Bulb \\(Unspecified\\)", "stems", P)
+P <- gsub("Bulb \\(Non-Marketable Yield\\)", "stems", P)
+P <- gsub("Bulb \\(Marketable Yield\\)", "stems", P)
+P <- gsub("Tuber/Root \\(Unspecified\\)", "tubers", P)
+#P <- gsub("Biomass/Fodder - Below Ground", "belowground biomass", P, fixed = TRUE)
+P <- gsub("Biomass/Fodder - Stump", "aboveground biomass", P)
+P <- gsub("Biomass/Fodder - Leaf Litter", "leaves", P, fixed = TRUE)
+P <- gsub("Fruit \\(Unspecified\\)", "fruit", P)
+P <- gsub("Biomass/Fodder - Leaves + Stalks/Branches", "leaves", P, fixed = TRUE)
+P <- gsub("Stalks", "stems", P)
+P <- gsub("Biomass/Fodder - Leaves", "leaves", P, fixed = TRUE)
+P <- gsub("Tuber/Root \\(Non-Marketable Yield\\)", "tubers", P)
+P <- gsub("^\\s*Gum/Sap\\s*$", "none", P)
+P <- gsub("Wood - Timber", "wood", P)
+P <- gsub("Wood - Firewood", "wood", P)
+P <- gsub("Tuber/Root", "roots", P)
+P <- gsub("aboveground biomass - Above + Below Ground", "aboveground biomass", P, fixed = TRUE)
+P <- gsub("Tuber/Root \\(Marketable Yield\\)", "roots", P)
+P <- gsub("stems+leaves", "stems", P, fixed = TRUE)
+P <- gsub("Tuber/Root \\(Unspecified\\)", "roots", P)
+P <- gsub("Whole Plant", "aboveground biomass", P)
+P <- gsub("Stump|Leaf Litter|Below Ground", "", P)
+P <- gsub("\\(Marketable Yield\\)|\\(Non-Marketable Yield\\)|\\(Total Yield\\)|\\(Tops\\)", "", P)
+P <- gsub("\\(Unspecified\\)", "", P)
+P <- gsub("Flowers", "flowers", P)
+P <- gsub("Nuts|Baby corn", "grain", P)
+P <- gsub("Corm |Cormel |^\\s*Stem/stems\\s*$", "stems", P)
+#P <- gsub("Unspecified", "none", P)
+df$yield_part <- P
 
 
 
