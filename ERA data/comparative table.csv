@@ -63,6 +63,6 @@
 "I.Amount","Irrig.Method","irrigation_amount"
 "I.Date.Start","Irrig.Method","irrigation_date"
 "I.Method","Irrig.Codes","irrigation_method"
-"T.Name","MT.Out","residue_prevcrop"
-"T.Residue.Prev","MT.Out","treatment"
+"T.Name","MT.Out","treatment"
+"T.Residue.Prev","MT.Out","residue_prevcrop"
 "T.Reps","MT.Out","rep"
