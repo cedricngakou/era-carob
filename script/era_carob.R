@@ -1,155 +1,72 @@
-### R script to transform ERA data into carob standard data 
 
 library(tidyr)
 library(dplyr)
 
+load("~/era-carob/ERA_data/agronomic_majestic-hippo-2020-2025-03-19.2_industrious-elephant-2023-2025-03-19.1.RData")
 
-load("~/era-carob/ERA data/agronomic_majestic-hippo-2020-2025-03-19.2_industrious-elephant-2023-2025-03-19.1.RData")
+### Baseline data 
+rb <-  do.call(carobiner::bindr, era_merge["Data.Out"])
 
-### read data 
-r1 <- do.call(carobiner::bindr, era_merge["Data.Out"])
+#### adding missing variables from prod.out to Data.out
+r5 <- do.call(carobiner::bindr, era_merge["Prod.Out"])
+rb <- merge(rb, r5,  by= intersect(names(rb), names(r5)), all = TRUE)
 
-### Process Data.out file 
+### Adding Tillage variables from Till.out to Data.out
+r7 <- do.call(carobiner::bindr, era_merge["Till.Out"])
+rb <- merge(rb, r7,  by= intersect(names(rb), names(r7)), all = TRUE)
 
-d <- data.frame(
-   Time= r1$Time,
-   B_code= r1$B.Code,
-   country= r1$Country,
-   Mean_Season_Prec= ifelse(is.na(r1$Site.MSP.S1) & !is.na(r1$Site.MSP.S2), r1$Site.MSP.S2, r1$Site.MSP.S2),
-   Mean_Annual_Prec= r1$Site.MAP,
-   #r1$Site.Slope.Perc,
-   location= r1$Site.ID,
-   on_farm= ifelse(grepl("Farm", r1$Site.Type), TRUE, FALSE) ,
-   #adm= r1$Site.Admin,
-   location_used= r1$Site.Agg,
-   latitude= r1$Site.LatD,
-   #latitude_unc= r1$Site.Lat.Unc,
-   longitude= r1$Site.LonD,
-   #longitude_unc= r1$Site.Lon.Unc,
-   elevation= r1$Site.Elevation,
-   season= r1$Site.Rain.Seasons,
-   #r1$Site.Slope.Degree,
-   soil_type= r1$Site.Soil.Texture,
-   Value= r1$ED.Mean.T,
-   variable= gsub(" ", "_",r1$Out.Subind),
-   crop= r1$P.Product,
-   #variety= r1$ED.Variety,
-   intercrop= r1$IN.Prods.All,
-   product_type= r1$Product.Type,
-   version= r1$Version,
-   #planting_method= r1$PD.Plant.Variable,
-   planting_date= unclass(r1$PD.Plant.Start),
-   planting_date_End=  unclass(r1$PD.Plant.End),
-   harvest_date= unclass(r1$PD.Harvest.Start),
-   harvest_date_End= unclass(r1$PD.Harvest.End),
-   year= r1$Time.Start.Year,
-   DAs= r1$PD.Harvest.DAS,
-   DAP= r1$PD.Date.DAP,
-   rep= r1$ED.Reps,
-   temp= r1$Time.Clim.Temp.Mean,
-   tmax= r1$Time.Clim.Temp.Max,
-   tmin= r1$Time.Clim.Temp.Min,
-   irrigation_method= r1$I.Method,
-   irrigation_fulfullment= r1$I.Strategy,
-   irrigated= r1$Irrig,
-   plot_area= r1$EX.Plot.Size,
-   variety_type= r1$V.Type,
-   variety= r1$V.Var,
-   maturity_days= r1$V.Maturity,
-   Till.Level.Name= r1$Till.Level.Name,
-   weeding_method= r1$W.Method,
-   weeding_times= r1$W.Freq,
-   herbicide_product= r1$C.Structure,
-   Treatment= ifelse(is.na(r1$ED.Comparison1) & !is.na(r1$ED.Comparison2), r1$ED.Comparison2, r1$ED.Comparison1),
-   yield_part= ifelse(is.na(r1$ED.Product.Comp) & !is.na(r1$ED.Product.Comp.L1), r1$ED.Product.Comp.L1, r1$ED.Product.Comp)
+### Adding planting management information 
+r9 <- do.call(carobiner::bindr, era_merge["Plant.Method"])
+rb <- merge(rb, r9,  by= intersect(names(rb), names(r9)), all = TRUE)
 
-   )
+### Adding fertilizer method
+r12 <- do.call(carobiner::bindr, era_merge["Fert.Method"])
+rb <- merge(rb, r12,  by= intersect(names(rb), names(r12)), all = TRUE)
 
-### Adding fertilizer
-rfo <- do.call(carobiner::bindr, era_merge["Fert.Out"])
+### Adding chemical elements 
+r15 <- do.call(carobiner::bindr, era_merge["Chems.Out"])
+rb <- merge(rb, r15,  by= intersect(names(rb), names(r15)), all = TRUE)
 
-rf <- r1[, names(rfo)]
-dfert <- data.frame(
-   N_organic= rf$F.NO,
-   P_organic= rf$F.PO,
-   K_organic= rf$F.KO,
-   N_fertilizer= rf$F.NI,
-   P_fertilizer= ifelse(is.na(rf$F.PI)& !is.na(rf$F.P2O5), rf$F.P2O5, rf$F.PI),
-   K_fertilizer= ifelse(is.na(rf$F.KI)& !is.na(rf$F.K2O),  rf$F.K2O, rf$F.KI),
-   fertilizer_type= rf$F.Level.Name2
-)
+#### residue 
+r18 <-  unclass(do.call(carobiner::bindr, era_merge["Res.Method"]) )
+rb <- merge(rb, r18,  by= intersect(names(rb), names(r18)), all = TRUE)
 
-d <- cbind(d, dfert)
+## residue composition 
+r19 <-  do.call(carobiner::bindr, era_merge["Res.Comp"]) 
+rb <- merge(rb, r19,  by= intersect(names(rb), names(r19)), all = TRUE)
 
+#### 
+r21 <-  do.call(carobiner::bindr, era_merge["pH.Out"]) 
+rb <- merge(rb, r21,  by= intersect(names(rb), names(r21)), all = TRUE)
 
-#### Process plant.Method file 
+####
+r22 <-  do.call(carobiner::bindr, era_merge["pH.Method"]) 
+rb <- merge(rb, r22,  by= intersect(names(rb), names(r22)), all = TRUE)
 
-## read plant.Method file 
-rp <- do.call(carobiner::bindr, era_merge["Plant.Method"])
+##### irrigation
+r23 <-  do.call(carobiner::bindr, era_merge["Irrig.Method"])
+rb <- merge(rb, r23,  by= intersect(names(rb), names(r23)), all = TRUE)
 
-dpM <- data.frame(
-   P.Level.Name= rp$P.Level.Name,
-   planting_method= rp$Plant.Method,
-   planting_implement= rp$Plant.Mechanization,
-   plant_density= rp$Plant.Density,
-   units= rp$Plant.Density.Unit,
-   row_spacing= rp$Plant.Row,
-   B.Code= rp$B.Code,
-   Version= rp$Version
-)
+###
+r25 <-  do.call(carobiner::bindr, era_merge["WH.Out"])
+rb <- merge(rb, r25,  by= intersect(names(rb), names(r25)), all = TRUE)
 
-
-dpM$seed_rate <- dpM$seed_density <- NA
-dpM$seed_density <- ifelse(grepl("^kg seed/ha$|^seeds/ha$|seed clusters/ha", dpM$units), dpM$plant_density,
-                  ifelse(grepl("seed/m2|kg seed/m2|grains/m2|seeds/m2|seeds/m",dpM$units), dpM$plant_density*10000, dpM$seed_density))  
-
-dpM$seed_rate <- ifelse(grepl("kg/ha", dpM$units), dpM$plant_density, dpM$seed_rate)
-dpM$plant_density <- ifelse(grepl("plants/m3|plants/m6|plants/m|plants/m4|plants/m2|plants/m5|plants/m7|hill/m2", dpM$units), dpM$plant_density*10000, dpM$plant_density) 
-
-i <- !is.na(dpM$seed_density) | !is.na(dpM$seed_rate)  
-dpM$plant_density[i] <- NA
-
-dpM$units <- NULL
-
-## read plant.out file 
-rpo <- do.call(carobiner::bindr, era_merge["Plant.Out"])
-
-### merge plant out data and plant method data   
-dpm <- merge(rpo, dpM, by= c("P.Level.Name", "B.Code", "Version"), all = TRUE)
-
-### Adding all common variables in d 
-d  <- cbind(d, r1[, names(rpo)]) 
-
-## merge plant method data with d 
-dmf <- merge(d, dpm, by= names(rpo), all = TRUE)
-
-### removing usefulness variables  
-dmf <- dmf[, !(names(dmf) %in% names(rpo))] 
-
-### Removing missing variable in the outcome (value) and B_code 
-dmf <-dmf[!is.na(dmf$variable) & !is.na(dmf$B_code),]
-
-
-
-### Process soil.out file  
-
+### Add soil data 
 r2 <- do.call(carobiner::bindr, era_merge["Soil.Out"])
-
 d1 <- data.frame(
-   
-   location= r2$Site.ID,
+   Site.ID= r2$Site.ID,
    soil_depth= paste0(r2$Soil.Upper, "-", r2$Soil.Lower),
-   B_code= r2$B.Code,
+   B.Code= r2$B.Code,
    variable= r2$variable,
    value= r2$value
 )
 
 proc_soil <- function(f){
    
-   d1 <- d1[d1$B_code==f,]
+   d2 <- d1[d1$B.Code==f,]
    
    ### Adding  step in the data to facilitate the transformation from long to wide 
-   ds <- d1 %>%
+   ds <- d2 %>%
       group_by(variable) %>%
       mutate(id = row_number()) %>%
       ungroup()
@@ -165,7 +82,7 @@ proc_soil <- function(f){
 }
 
 #### Append the data base on the study (B_code)
-ff <- unique(d1$B_code)
+ff <- unique(r2$B.Code)
 ds <- lapply(ff, proc_soil)
 ds <- do.call(carobiner::bindr, ds)
 ds$id <- NULL
@@ -173,41 +90,126 @@ names(ds) <- gsub("Soil.", "soil_", names(ds))
 i <- grep("CLY|SLT|SND|soil_AP", names(ds))
 names(ds)[i] <-  c("soil_clay","soil_silt","soil_sand", "soil_P_available")
 
-### merge soil information with dmf
-dmf <- merge(dmf, ds, by=c("location","B_code"), all = TRUE)
-### Removing missing variable in the outcome  
-dmf <- dmf[!is.na(dmf$variable), ] 
+rb <- merge(rb, ds, by= intersect(names(rb), names(ds)), all= TRUE)
+rb <- rb[!grepl("All Sites", rb$Site.ID),]
+### keep only rows with crop
+df <- rb[!grepl("Animal", rb$Product.Type),]
+#df$control <- ifelse(grepl("Yes", substr(df$T.Control, 1, 3)), TRUE, FALSE)
+#df$treatment <- ifelse(is.na(df$T.Name) & !is.na(df$F.Level.Name), df$F.Level.Name, df$T.Name)
 
-### Process tillage file 
+df$Out.Subind <- gsub(" ", "_", df$Out.Subind)
+cols <- c("PD.Plant.Start", "PD.Plant.End", "PD.Harvest.Start", "PD.Harvest.End")
+df[cols] <- lapply(df[cols], unclass)
 
-r3 <- do.call(carobiner::bindr, era_merge["Till.Out"])
-
-d2 <- data.frame(
-   Till.Level.Name= r3$Till.Level.Name,
-   land_prep_method= ifelse(is.na(r3$T.Method)& !is.na(r3$Till.Other), r3$Till.Other, r3$T.Method),
-   land_prep_implement= r3$T.Mechanization,
-   location= r3$Site.ID,
-   B_code= r3$B.Code,
-   Time= r3$Time,
-   version= r3$Version
+d <- data.frame(
+   dataset_id= df$B.Code,
+   location= df$Site.ID,
+   on_farm= df$Site.Type,
+   country= df$Country,
+   latitude= df$Site.LatD,
+   longitude= df$Site.LonD,
+   rain= df$Site.MAP,
+   #temp= df$Site.MAT,
+   elevation= df$Site.Elevation,
+   soil_type= df$Site.Soil.Texture,
+   year= substr(df$Time, 1, 4),
+   seasonal_prep= df$Time.Clim.SP,
+   total_prec= df$Time.Clim.TAP,
+   temp= df$Time.Clim.Temp.Mean,
+   tmax= df$Time.Clim.Temp.Max,
+   tmin= df$Time.Clim.Temp.Min,
+   dsign= df$EX.Design,
+   plot_area= df$EX.HPlot.Size,
+   treatment= ifelse(is.na(df$T.Name) & !is.na(df$F.Level.Name), df$F.Level.Name, df$T.Name),
+   control_T= ifelse(grepl("Yes", substr(df$T.Control, 1, 3)), TRUE, FALSE),
+   crop= df$P.Product,
+   harvest_date= df$PD.Harvest.Start,
+   harvest_end= df$PD.Harvest.End,
+   planting_date= df$PD.Plant.Start,
+   planting_end= df$PD.Plant.End,
+   tillage= df$Till.Level.Name,
+   land_prep_method= ifelse(is.na(df$T.Method)& !is.na(df$Till.Other), df$Till.Other, df$T.Method),
+   land_prep_implement= df$T.Mechanization,
+   variable= df$Out.Subind,
+   yield_part= ifelse(is.na(df$ED.Product.Comp) & !is.na(df$ED.Product.Comp.L1), df$ED.Product.Comp.L1, df$ED.Product.Comp),
+   value= df$ED.Mean.T,
+   rep= ifelse(is.na(df$T.Reps) & !is.na(df$ED.Reps), df$ED.Reps, df$T.Reps),
+   #df$T.Residue.Prev,
+   variety= ifelse(is.na(df$V.Var) & !is.na(df$ED.Variety), df$ED.Variety, df$V.Var),
+   maturity_days= df$V.Maturity,
+   N_organic= df$F.NO,
+   P_organic= df$F.PO,
+   K_organic= df$F.KO,
+   N_fertilizer= df$F.NI,
+   P_fertilizer= ifelse(is.na(df$F.PI)& !is.na(df$F.P2O5), df$F.P2O5, df$F.PI),
+   K_fertilizer= ifelse(is.na(df$F.KI)& !is.na(df$F.K2O),  df$F.K2O, df$F.KI),
+   #fert_org_unit= df$F.O.Unit,
+   #fert_Io_unit= df$F.I.Unit,
+   irrigation_amount= df$I.Method,
+   irrigation_date= ifelse(is.na(df$I.Date.Start) & !is.na(df$I.Date.Gen), df$I.Date.Gen, df$I.Date.Start),
+   irrigation_date_end= df$I.Date.End,
+   irrrigated= ifelse(is.na(df$I.Amount), FALSE, TRUE),
+   planting_method= df$Plant.Method,
+   planting_implement= df$Plant.Mechanization,
+   plant_density= df$Plant.Density,
+   units= df$Plant.Density.Unit,
+   row_spacing= df$Plant.Row,
+   herbicide_used= ifelse(grepl("Herbicide", df$C.Type), TRUE, FALSE),
+   herbicide_method= ifelse(grepl("Herbicide", df$C.Type), df$C.App.Method, "none"),
+   herbicide_implement= ifelse(grepl("Herbicide", df$C.Type), df$C.Mechanization, "none"),
+   herbicide_amount= ifelse(grepl("Herbicide", df$C.Type),df$C.Amount, 0),
+   herbicide_product= ifelse(grepl("Herbicide", df$C.Type), df$C.Name, "none"),
+   
+   
+   insecticide_used= ifelse(grepl("Insecticide|Bioinsecticide", df$C.Type), TRUE, FALSE),
+   insecticide_method= ifelse(grepl("Insecticide|Bioinsecticide", df$C.Type), df$C.App.Method, "none"), 
+   insecticide_implement= ifelse(grepl("Insecticide|Bioinsecticide", df$C.Type), df$C.Mechanization, "none"), 
+   insecticide_amount= ifelse(grepl("Insecticide|Bioinsecticide", df$C.Type), df$C.Amount, 0), 
+   insecticide_product= ifelse(grepl("Insecticide|Bioinsecticide", df$C.Type), df$C.Name, "none"),
+   
+   
+   fungicide_used= ifelse(grepl("Fungicide|Biofungicide", df$C.Type), TRUE, FALSE),
+   fungicide_method= ifelse(grepl("Fungicide|Biofungicide", df$C.Type), df$C.App.Method, "none"), 
+   fungicide_implement= ifelse(grepl("Fungicide|Biofungicide", df$C.Type), df$C.Mechanization, "none"), 
+   fungicide_amount= ifelse(grepl("Fungicide|Biofungicide", df$C.Type), df$C.Amount, 0), 
+   fungicide_product= ifelse(grepl("Fungicide|Biofungicide", df$C.Type), df$C.Name, "none"),
+   
+   
+   pesticide_used= ifelse(grepl("Biopesticide", df$C.Type), TRUE, FALSE),
+   pesticide_used_method= ifelse(grepl("Biopesticide", df$C.Type), df$C.App.Method, "none"), 
+   pesticide_used_implement= ifelse(grepl("Biopesticide", df$C.Type), df$C.Mechanization, "none"), 
+   pesticide_used_amount= ifelse(grepl("Biopesticide", df$C.Type), df$C.Amount, 0), 
+   pesticide_product= ifelse(grepl("Biopesticide", df$C.Type), df$C.Name, "none"),
+   
+   soil_clay= df$soil_clay,
+   soil_depth= df$soil_depth,
+   soil_sand= df$soil_sand,
+   soil_silt= df$soil_silt
 )
 
-## merge d2 and d
-dt <- merge(dmf, d2, by=c("location","B_code", "Till.Level.Name", "Time", "version"), all = TRUE)
-dt <- dt[!is.na(dt$variable), ] 
-dt$Till.Level.Name <- NULL
+
+### fixing seed density unit 
+
+d$seed_rate <- d$seed_density <- NA
+d$seed_density <- ifelse(grepl("^kg seed/ha$|^seeds/ha$|seed clusters/ha", d$units), d$plant_densit,
+                         ifelse(grepl("seed/m2|kg seed/m2|grains/m2|seeds/m2|seeds/m",d$units), d$plant_density*10000, df$seed_density))  
+
+d$seed_rate <- ifelse(grepl("kg/ha", d$units), d$plant_density, d$seed_rate)
+df$plant_density <- ifelse(grepl("plants/m3|plants/m6|plants/m|plants/m4|plants/m2|plants/m5|plants/m7|hill/m2", d$units), d$plant_density*10000, d$plant_density) 
+
+i <- !is.na(d$seed_density) | !is.na(d$seed_rate)  
+d$plant_density[i] <- NA
+d$units <- NULL
 
 
-### keep only rows with crop
-dc <- dt[!grepl("Animal", dt$product_type),]
+##############################################################
+#### Transforming response variable from long into wide format ##########
 
-#### Transforming response variable from long into wide format 
-
-proc <- function(f){
+proc <- function(f, dc){
    
-   dc <- dc[dc$B_code==f,]
+   dc <- dc[dc$dataset_id==f,]
    
-### Adding  step in the data to facilitate the transformation from long to wide 
+   ### Adding  step in the data to facilitate the transformation from long to wide 
    df <- dc %>%
       group_by(variable) %>%
       mutate(id = row_number()) %>%
@@ -215,68 +217,23 @@ proc <- function(f){
    
    df_wide <- df %>%
       pivot_wider(
-         id_cols = names(df)[!grepl("variable|Value", names(df))],
+         id_cols = names(df)[!grepl("value|variable", names(df))],
          names_from = variable ,        
-         values_from = Value       
+         values_from = value       
       )
-   
-   return(df_wide)
+   df <- df_wide[order(df_wide$location), ]
+   i <- grep(paste("Crop_Yield", "Soil_Organic_Carbon", "Soil_Total_Nitrogen", "Soil_Nitrogen", "Soil_Organic_Matter", "Carbon_Dioxide_Emissions", "Soil_Organic_Carbon_(Change)", sep = "|"), names(df))
+   names(df)[i] <- c("yield","soil_SOC", "soil_total_N", "soil_N","soil_SOM", "soil_CO2", "soil_ex_SOC")
+   df <- df[, colSums(!is.na(df)) > 0]
+   return(df)
    
 }
 
 #### Append the data base on the study (B_code)
-ff <- unique(dc$B_code)
-dw <- lapply(ff, proc)
+ff <- unique(d$dataset_id)
+dw <- lapply(ff, function(y) proc(y, d))
 
-dw <- do.call(carobiner::bindr, dw)
-
-
-### Change the era names  into carob standard names 
-i <- which(names(dw) %in% c("Crop_Yield", "Soil_Moisture", "Soil_Organic_Carbon","Soil_Total_Nitrogen","Cation_Exchange_Capacity", "Crop_Residue_Yield","Aboveground_Biomass" , 
-                            "Soil_Organic_Matter", "Soil_NH4", "Soil_NO3"))
-names(dw)[i] <-  c("yield","soil_WHC_sat","soil_SOC", "soil_N","soil_CEC", "fwy_residue", "fwy_total", "soil_SOM", "soil_NH4", "soil_NO3")
-
-### Keep suitable variables for carob 
-Cnms <- names(dc)[!grepl("variable|Value", names(dc))]
-respV <- c("yield", "Biomass_Yield", "fwy_residue","fwy_total", "soil_WHC_sat","soil_N")
-df <- dw[,c(Cnms, respV)]
-
-#### removing empty columns
-df <- df[, colSums(!is.na(df)) > 0]
-df[df=="-9999"] <- NA
-
-### Fixing yield_part 
-P <- carobiner::fix_name(df$yield_part)
-P <- gsub("Grain/Seed", "grain", P)
-P <- gsub("Biomass/Fodder" , "aboveground biomass", P, fixed = TRUE)
-P <- gsub("Pods", "pod", P)
-P <- gsub("Haulm", "aboveground biomass", P)
-P <- gsub("Tuber/Root", "roots", P)
-P <- gsub("Bulb", "stems", P)
-P <- gsub("Stalks\\+Leaves" , "leaves", P)
-P <- gsub("Fruit", "fruit", P)
-P <- gsub("Fruit \\(Marketable Yield\\)", "fruit", P)
-P <- gsub("^\\s*Gum/Sap\\s*$", "none", P)
-P <- gsub("Wood - Timber|Wood - Firewood", "wood", P)
-P <- gsub("Tuber/Root", "roots", P)
-P <- gsub("stems+leaves", "stems", P, fixed = TRUE)
-P <- gsub("Whole Plant", "aboveground biomass", P)
-P <- gsub("Flowers", "flowers", P)
-P <- gsub("Nuts|Baby corn", "grain", P)
-P <- gsub("Corm |Cormel |^\\s*Stem/stems\\s*$", "stems", P)
-P <- gsub("aboveground biomass/Branches", "aboveground biomass", P)
-P <- gsub("Leaves + Stalks/Branches", "", P, fixed = TRUE)
-P <- gsub("Above Ground|Straw|Above|Below Ground|Stover|Stalks|Below Ground|Stump|Leaf Litter", "", P)
-P <- gsub("\\(Marketable Yield\\)|\\(Non-Marketable Yield\\)|\\(Tops\\)|\\(Total Yield\\)|\\(none\\)", "", P)
-P <- gsub("Stalks/Branches", "", P)
-P <- gsub("Fibre/Lint", "fibre", P)
-P <- gsub("\\(Unspecified\\)|/Branches|- Leaves", "", P)
-P <- gsub("-  + | - |/|+", "", P)
-P <- gsub("^aboveground biomass \\+ $|^aboveground biomass $", "aboveground biomass", P)
-P <- gsub("Unspecified|gh", "none", P)
-P[P==""] <- "none"
-df$yield_part <- P
-
+dwf <- do.call(carobiner::bindr, dw)
 
 
 
