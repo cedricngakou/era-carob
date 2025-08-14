@@ -102,14 +102,14 @@ cols <- c("PD.Plant.Start", "PD.Plant.End", "PD.Harvest.Start", "PD.Harvest.End"
 df[cols] <- lapply(df[cols], unclass)
 
 d <- data.frame(
-   uri=df$ B.DOI,
+   uri=df$B.DOI,
    reference= df$B.Author.Last,
    dataset_id= df$B.Code,
    location= df$Site.ID,
    on_farm= df$Site.Type,
    country= df$Country,
-   latitude= df$Site.LatD,
-   longitude= df$Site.LonD,
+   latitude= substr(df$Site.LatD, 1, 6),
+   longitude= substr(df$Site.LonD,1, 6),
    rain= df$Site.MAP,
    #temp= df$Site.MAT,
    elevation= df$Site.Elevation,
@@ -188,8 +188,13 @@ d <- data.frame(
    soil_clay= df$soil_clay,
    soil_depth= df$soil_depth,
    soil_sand= df$soil_sand,
-   soil_silt= df$soil_silt
+   soil_silt= df$soil_silt,
+   soil_pH= df$soil_pH,
+   soil_EC= df$soil_EC,
+   soil_bd= df$soil_BD,
+   soil_P_total= df$soil_TP
 )
+
 
 
 ### fixing seed density unit 
@@ -217,7 +222,7 @@ d$country <- ifelse(grepl("Uganda", d$country), "Uganda",
              ifelse(grepl("Benin..Togo", d$country), "Benin", 
              ifelse(grepl("Ghana..Benin", d$country), "Ghana", 
              ifelse(grepl("Kenya..Kenya", d$country), "Kenya", 
-             felse(grepl("Drc|Congo", d$country), "Democratic Republic of Congo", d$country))))))))
+             ifelse(grepl("Drc|Congo", d$country), "Democratic Republic of Congo", d$country))))))))
 
 ### Fixing intercrops
 
@@ -232,20 +237,71 @@ split_padded <- lapply(split, function(x) {
    return(x)
 })
 
-# Now you can safely bind rows
+# bind the different rows
 inter <- as.data.frame(do.call(rbind, split_padded), stringsAsFactors = FALSE)
 inter$V3 <- ifelse(grepl("Mangifera indica", inter$V3), "Mangifera", 
-            ifelse(grepl("Leucaena leucocephala", inter$V3), "Leucaena", inter$V3))
+                   ifelse(grepl("Leucaena leucocephala", inter$V3), "Leucaena", inter$V3))
 inter$V2 <- ifelse(grepl("Poupartia silvatica", inter$V2), "Poupartia silvatica", 
             ifelse(grepl("Maize..Barley", inter$V2), "maize",
-            felse(grepl("Terminalia ivoresensis", inter$V2), "Terminalia ivoresensis", 
+            ifelse(grepl("Terminalia ivoresensis", inter$V2), "Terminalia ivoresensis", 
             ifelse(grepl("Pearl Millet", inter$V2), "Pearl Millet", 
             ifelse(grepl("Mango..Papaya", inter$V2), "Mango", inter$V2)))))
 
 d$intercrops <- tolower(ifelse(!is.na(inter$V3) & !is.na(inter$V4), paste(inter$V2, inter$V3, inter$V4, sep = ";"), 
-                        ifelse(!is.na(inter$V3) & is.na(inter$V4), paste(inter$V2, inter$V3, sep = ";"), inter$V2)))
+                               ifelse(!is.na(inter$V3) & is.na(inter$V4), paste(inter$V2, inter$V3, sep = ";"), inter$V2)))
 
 
+i <- which(d$K_organic!=0 | d$N_organic!=0 |d$P_organic!=0)
+d$OM_used <- FALSE
+d$OM_used[i] <- TRUE
+
+## Fixing longitude and latitude 
+
+d$longitude <- sub("(\\d*\\.\\d*?)\\.+", "\\1", d$longitude)## keep only the first decimal point
+P <- carobiner::fix_name(d$longitude)
+P <- gsub("\\.+$", "", P)
+d$longitude <- P
+d$longitude <- as.numeric(d$longitude)
+
+d$latitude <- sub("(\\d*\\.\\d*?)\\.+", "\\1", d$latitude)## keep only the first decimal point
+P <- carobiner::fix_name(d$latitude)
+P <- gsub("\\.+$", "", P)
+d$latitude <- P
+d$latitude <- as.numeric(d$latitude)
+
+
+
+### Fixing Fertilizer
+
+### N
+P <- carobiner::fix_name(d$N_fertilizer)
+P <- gsub("NA.|.NA", "", P)
+P <- gsub("^\\.+", "", P)
+P <- gsub("\\.+", " ", P)
+d$N_fertilizer <- P
+
+d$N_fertilizer <- ifelse(grepl("999999|999", d$N_fertilizer), NA, d$N_fertilizer)
+d$N_fertilizer <- as.numeric(gsub(" ", "", substr(d$N_fertilizer, 1, 3)))
+
+### P
+P <- carobiner::fix_name(d$P_fertilizer)
+P <- gsub("NA.|.NA", "", P)
+P <- gsub("^\\.+", "", P)
+P <- gsub("\\.+", " ", P)
+d$P_fertilizer <- P
+
+d$P_fertilizer <- ifelse(grepl("999999|999", d$P_fertilizer), NA, d$P_fertilizer)
+d$P_fertilizer <- as.numeric(gsub(" ", "", substr(d$P_fertilizer, 1, 3)))
+
+### K
+P <- carobiner::fix_name(d$K_fertilizer)
+P <- gsub("NA.|.NA", "", P)
+P <- gsub("^\\.+", "", P)
+P <- gsub("\\.+", " ", P)
+d$K_fertilizer <- P
+
+d$K_fertilizer <- ifelse(grepl("999999|999", d$K_fertilizer), NA, d$K_fertilizer)
+d$K_fertilizer <- as.numeric(gsub(" ", "", substr(d$K_fertilizer, 1, 3)))
 
 
 ##############################################################
@@ -289,23 +345,42 @@ names(dwf)[i] <- c("yield","soil_SOC", "soil_total_N", "soil_N", "soil_SOM", "so
 dwf$land_prep_method <- ifelse(is.na(dwf$land_prep_method) & !is.na(dwf$tillage), dwf$tillage, dwf$land_prep_method)
 
 ### Fixing land prep 
-dwf$land_prep <- dwf$land_prep_method
+#dwf$land_prep <- dwf$land_prep_method
 dwf$land_prep_method <- tolower(ifelse(grepl("CT|CONV|ConvTill|conv|CON|Conservation|Direct|Conv|CA|Conventional", dwf$land_prep_method), "conventional", 
                                ifelse(grepl("MT|Min Till", dwf$land_prep_method), "minimum tillage",
                                ifelse(grepl("Disc", dwf$land_prep_method), "disk tillage", 
-                               ifelse(grepl("NT|ZT|no-till|NoTill|Control|No till|No Till|No-till|T0|FlatUntill", dwf$land_prep_method), "zero tillage", 
+                               ifelse(grepl("NT|ZT|no-till|NoTill|Control|No till|No Till|No-till|T0|FlatUntill|zero", dwf$land_prep_method), "zero tillage", 
                                ifelse(grepl("Ridge|Ridging|ridge|ridging", dwf$land_prep_method), "ridge tillage", 
                                ifelse(grepl("RT|reduced|Reduced", dwf$land_prep_method), "reduced tillage",
                                ifelse(grepl("Chiseling", dwf$land_prep_method), "deep ploughing",
-                               ifelse(grepl("Hand Hoe|Hand hoe", dwf$land_prep_method), "hoeing", 
+                               ifelse(grepl("Hand Hoe|Hand hoe|hoe|hue", dwf$land_prep_method), "hoeing", 
                                ifelse(grepl("Ploughed|Plough|plough", dwf$land_prep_method), "ploughing", 
-                               ifelse(grepl("Rotary Plough", dwf$land_prep_method), "rotovating",
-                               ifelse(grepl("Mali Tillage|BF Tillage|Niger Tillage|Tillage|Till|Maize till|RedTill|FlatTill|Plow-till", dwf$land_prep_method), "tillage", 
-                               ifelse(grepl("Planting Basins|Basins|BASINS", dwf$land_prep_method), "basins", 
+                               ifelse(grepl("Rotary Plough|ratovator|rotovator|rotovating|rotavator", dwf$land_prep_method), "rotovating",
+                               ifelse(grepl("Mali Tillage|BF Tillage|Niger Tillage|Tillage|Till|Maize till|RedTill|FlatTill|Plow-till|till|shallow tillag|manual tilling|no furrow", dwf$land_prep_method), "tillage", 
+                               ifelse(grepl("Planting Basins|Basins|BASINS|basin", dwf$land_prep_method), "basins", 
                                ifelse(grepl("Non-puddling NP", dwf$land_prep_method), "not puddled", 
-                               ifelse(grepl("Puddling P", dwf$land_prep_method), "puddled", dwf$land_prep_method)))))))))))))))
+                               ifelse(grepl("permbeds|broadpermbeds", dwf$land_prep_method), "permanent beds", 
+                               ifelse(grepl("puddled plots", dwf$land_prep_method), "puddled",
+                               ifelse(grepl("furrow dikes|furrows", dwf$land_prep_method), "open furrows",
+                               ifelse(grepl("Puddling P", dwf$land_prep_method), "puddled", dwf$land_prep_method))))))))))))))))))
 
 
+dwf$tillage <- NULL
+
+### Yield part 
+
+dwf$yield_part <- tolower(ifelse(grepl("Grain/Seed", dwf$yield_part), "grain", 
+                  ifelse(grepl("Pods", dwf$yield_part), "pod",
+                  ifelse(grepl("Fruit", dwf$yield_part), "fruit", 
+                  ifelse(grepl("Tuber/Root|Bulb", dwf$yield_part), "roots",
+                  ifelse(grepl("Corm|Cormel|corn", dwf$yield_part), "grain",
+                  ifelse(grepl("Wood", dwf$yield_part), "wood",
+                  ifelse(grepl("Stem/Stalks|^Stalks$", dwf$yield_part), "stems",
+                  ifelse(grepl("Whole Plant|Stalks\\+Leaves", dwf$yield_part), "aboveground biomass",
+                  ifelse(grepl("Biomass|Haulm", dwf$yield_part), "biomass",
+                  ifelse(grepl("Unspecified|Gum/Sap|Cane|gh", dwf$yield_part), "none",
+                  ifelse(grepl("Fibre|Suga", dwf$yield_part), "fibres",
+                  ifelse(grepl("Nuts", dwf$yield_part), "pod", dwf$yield_part)))))))))))))
 
 
 
