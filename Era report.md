@@ -31,7 +31,7 @@ ERA database content:
 
 - More than 400 variables ( some might not be important depending of use of the dataset)
 
-- More than 202,000 observations from different areas
+- More than 110,000 observations from different areas
 
 - The data is extracted from 1720 peer-reviewed studies. 
 
