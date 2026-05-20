@@ -147,10 +147,11 @@ d <- data.frame(
    K_fertilizer= ifelse(is.na(df$F.KI)& !is.na(df$F.K2O),  df$F.K2O, df$F.KI),
    #fert_org_unit= df$F.O.Unit,
    #fert_Io_unit= df$F.I.Unit,
-   irrigation_amount= df$I.Method,
+   irrigation_amount= df$I.Amount,
+   irrigation_method= df$I.Method,
    irrigation_date= ifelse(is.na(df$I.Date.Start) & !is.na(df$I.Date.Gen), df$I.Date.Gen, df$I.Date.Start),
    irrigation_date_end= df$I.Date.End,
-   irrrigated= ifelse(is.na(df$I.Amount), FALSE, TRUE),
+   irrigated= !is.na(df$I.Amount) & df$I.Amount != 0,
    planting_method= df$Plant.Method,
    planting_implement= df$Plant.Mechanization,
    plant_density= df$Plant.Density,
@@ -200,7 +201,7 @@ d <- data.frame(
 ### fixing seed density unit 
 
 d$seed_rate <- d$seed_density <- NA
-d$seed_density <- ifelse(grepl("^kg seed/ha$|^seeds/ha$|seed clusters/ha", d$units), d$plant_densit,
+d$seed_density <- ifelse(grepl("^kg seed/ha$|^seeds/ha$|seed clusters/ha", d$units), d$plant_density,
                          ifelse(grepl("seed/m2|kg seed/m2|grains/m2|seeds/m2|seeds/m",d$units), d$plant_density*10000, d$seed_density))  
 
 d$seed_rate <- ifelse(grepl("kg/ha", d$units), d$plant_density, d$seed_rate)
@@ -281,7 +282,7 @@ P <- gsub("\\.+", " ", P)
 d$N_fertilizer <- P
 
 d$N_fertilizer <- ifelse(grepl("999999|999", d$N_fertilizer), NA, d$N_fertilizer)
-d$N_fertilizer <- as.numeric(gsub(" ", "", substr(d$N_fertilizer, 1, 3)))
+d$N_fertilizer <- as.numeric(gsub("\\s.*", "", d$N_fertilizer))
 
 ### P
 P <- carobiner::fix_name(d$P_fertilizer)
@@ -291,7 +292,7 @@ P <- gsub("\\.+", " ", P)
 d$P_fertilizer <- P
 
 d$P_fertilizer <- ifelse(grepl("999999|999", d$P_fertilizer), NA, d$P_fertilizer)
-d$P_fertilizer <- as.numeric(gsub(" ", "", substr(d$P_fertilizer, 1, 3)))
+d$P_fertilizer <- as.numeric(gsub("\\s.*", "", d$P_fertilizer))
 
 ### K
 P <- carobiner::fix_name(d$K_fertilizer)
@@ -301,7 +302,7 @@ P <- gsub("\\.+", " ", P)
 d$K_fertilizer <- P
 
 d$K_fertilizer <- ifelse(grepl("999999|999", d$K_fertilizer), NA, d$K_fertilizer)
-d$K_fertilizer <- as.numeric(gsub(" ", "", substr(d$K_fertilizer, 1, 3)))
+d$K_fertilizer <- as.numeric(gsub("\\s.*", "", d$K_fertilizer))
 
 
 ##############################################################
