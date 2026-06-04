@@ -1,8 +1,44 @@
+## ERA TO CAROB FORMAT
+
+# Run once to install dependencies:
+# install.packages(c("s3fs", "arrow", "terra", "remotes"), type = "binary")
+# remotes::install_github("carob-data/caramba")
 
 library(tidyr)
 library(dplyr)
+library(s3fs)
+library(arrow)
+library(jsonlite)
+library(caramba)
 
-load("~/era-carob/ERA_data/agronomic_majestic-hippo-2020-2025-03-19.2_industrious-elephant-2023-2025-03-19.1.RData")
+# Load ERA data from S3
+s3 <- s3fs::S3FileSystem$new(anonymous = TRUE)
+era_s3 <- "s3://digital-atlas/era"
+bundle_dir <- file.path(era_s3, "data", "packaged")
+
+all_files <- s3$dir_ls(bundle_dir)
+latest_bundle <- tail(sort(grep("era_agronomy_bundle.*\\.tar\\.gz$", all_files, value = TRUE)), 1)
+
+dl_dir <- "downloaded_data"
+dir.create(dl_dir, showWarnings = FALSE)
+bundle_local <- file.path(dl_dir, basename(latest_bundle))
+extract_dir <- file.path(dl_dir, tools::file_path_sans_ext(tools::file_path_sans_ext(basename(latest_bundle))))
+
+if (!file.exists(bundle_local)) {
+  s3$file_download(latest_bundle, bundle_local, overwrite = TRUE)
+}
+if (!dir.exists(extract_dir)) {
+  dir.create(extract_dir)
+  utils::untar(bundle_local, exdir = extract_dir)
+}
+
+json_agronomic <- list.files(extract_dir, pattern = "^agronomic_.*\\.json$", full.names = TRUE)
+json_master    <- list.files(extract_dir, pattern = "^era_master_codes.*\\.json$", full.names = TRUE)
+parquet_file   <- list.files(extract_dir, pattern = "^era_compiled.*\\.parquet$", full.names = TRUE)
+
+ERA_Compiled <- arrow::read_parquet(parquet_file)
+era_merge    <- jsonlite::fromJSON(json_agronomic[1], simplifyDataFrame = TRUE)
+era_master   <- jsonlite::fromJSON(json_master[1],    simplifyDataFrame = TRUE)
 
 ### Baseline data 
 rb <-  do.call(carobiner::bindr, era_merge["Data.Out"])
@@ -147,10 +183,11 @@ d <- data.frame(
    K_fertilizer= ifelse(is.na(df$F.KI)& !is.na(df$F.K2O),  df$F.K2O, df$F.KI),
    #fert_org_unit= df$F.O.Unit,
    #fert_Io_unit= df$F.I.Unit,
-   irrigation_amount= df$I.Method,
+   irrigation_amount= df$I.Amount,
+   irrigation_method= df$I.Method,
    irrigation_date= ifelse(is.na(df$I.Date.Start) & !is.na(df$I.Date.Gen), df$I.Date.Gen, df$I.Date.Start),
    irrigation_date_end= df$I.Date.End,
-   irrrigated= ifelse(is.na(df$I.Amount), FALSE, TRUE),
+   irrigated= !is.na(df$I.Amount) & df$I.Amount != 0,
    planting_method= df$Plant.Method,
    planting_implement= df$Plant.Mechanization,
    plant_density= df$Plant.Density,
@@ -200,7 +237,7 @@ d <- data.frame(
 ### fixing seed density unit 
 
 d$seed_rate <- d$seed_density <- NA
-d$seed_density <- ifelse(grepl("^kg seed/ha$|^seeds/ha$|seed clusters/ha", d$units), d$plant_densit,
+d$seed_density <- ifelse(grepl("^kg seed/ha$|^seeds/ha$|seed clusters/ha", d$units), d$plant_density,
                          ifelse(grepl("seed/m2|kg seed/m2|grains/m2|seeds/m2|seeds/m",d$units), d$plant_density*10000, d$seed_density))  
 
 d$seed_rate <- ifelse(grepl("kg/ha", d$units), d$plant_density, d$seed_rate)
@@ -281,7 +318,7 @@ P <- gsub("\\.+", " ", P)
 d$N_fertilizer <- P
 
 d$N_fertilizer <- ifelse(grepl("999999|999", d$N_fertilizer), NA, d$N_fertilizer)
-d$N_fertilizer <- as.numeric(gsub(" ", "", substr(d$N_fertilizer, 1, 3)))
+d$N_fertilizer <- as.numeric(gsub("\\s.*", "", d$N_fertilizer))
 
 ### P
 P <- carobiner::fix_name(d$P_fertilizer)
@@ -291,7 +328,7 @@ P <- gsub("\\.+", " ", P)
 d$P_fertilizer <- P
 
 d$P_fertilizer <- ifelse(grepl("999999|999", d$P_fertilizer), NA, d$P_fertilizer)
-d$P_fertilizer <- as.numeric(gsub(" ", "", substr(d$P_fertilizer, 1, 3)))
+d$P_fertilizer <- as.numeric(gsub("\\s.*", "", d$P_fertilizer))
 
 ### K
 P <- carobiner::fix_name(d$K_fertilizer)
@@ -301,7 +338,7 @@ P <- gsub("\\.+", " ", P)
 d$K_fertilizer <- P
 
 d$K_fertilizer <- ifelse(grepl("999999|999", d$K_fertilizer), NA, d$K_fertilizer)
-d$K_fertilizer <- as.numeric(gsub(" ", "", substr(d$K_fertilizer, 1, 3)))
+d$K_fertilizer <- as.numeric(gsub("\\s.*", "", d$K_fertilizer))
 
 
 ##############################################################
@@ -384,4 +421,4 @@ dwf$yield_part <- tolower(ifelse(grepl("Grain/Seed", dwf$yield_part), "grain",
 
 
 
-
+## MERGE WITH CAROB 

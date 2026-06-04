@@ -1,0 +1,746 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ERA × Carob — Agricultural Practice Effects Explorer</title>
+<style>
+  :root {
+    --green:   #2d6a4f;
+    --green-l: #52b788;
+    --green-xl:#d8f3dc;
+    --amber:   #e76f51;
+    --grey-1:  #f8f9fa;
+    --grey-2:  #e9ecef;
+    --grey-3:  #ced4da;
+    --grey-4:  #6c757d;
+    --text:    #212529;
+    --card:    #ffffff;
+    --radius:  8px;
+    --shadow:  0 1px 4px rgba(0,0,0,.10);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', sans-serif; background: var(--grey-1); color: var(--text); }
+
+  /* ── TOP NAV ── */
+  nav {
+    background: var(--green);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 24px;
+    height: 56px;
+    position: sticky; top: 0; z-index: 100;
+  }
+  nav .brand { font-size: 1.1rem; font-weight: 700; letter-spacing: .5px; }
+  nav .brand span { color: var(--green-l); }
+  nav .tabs { display: flex; gap: 4px; }
+  nav .tabs a {
+    color: rgba(255,255,255,.75);
+    text-decoration: none;
+    padding: 6px 14px;
+    border-radius: 4px;
+    font-size: .85rem;
+    transition: background .15s;
+  }
+  nav .tabs a:hover, nav .tabs a.active {
+    background: rgba(255,255,255,.15);
+    color: #fff;
+  }
+  nav .badge {
+    background: var(--green-l);
+    color: var(--green);
+    font-size: .75rem;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 20px;
+  }
+
+  /* ── LAYOUT ── */
+  .page { display: flex; min-height: calc(100vh - 56px); }
+
+  /* ── SIDEBAR FILTERS ── */
+  aside {
+    width: 240px;
+    flex-shrink: 0;
+    background: var(--card);
+    border-right: 1px solid var(--grey-2);
+    padding: 20px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+  .filter-group label {
+    font-size: .7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .8px;
+    color: var(--grey-4);
+    display: block;
+    margin-bottom: 8px;
+  }
+  .filter-group select, .filter-group input[type=range] {
+    width: 100%;
+    padding: 6px 8px;
+    border: 1px solid var(--grey-3);
+    border-radius: 4px;
+    font-size: .85rem;
+    background: var(--grey-1);
+  }
+  .chip-group { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip {
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: .75rem;
+    border: 1px solid var(--grey-3);
+    background: var(--grey-1);
+    cursor: pointer;
+  }
+  .chip.on { background: var(--green-xl); border-color: var(--green-l); color: var(--green); font-weight: 600; }
+  .filter-group .range-labels { display: flex; justify-content: space-between; font-size: .72rem; color: var(--grey-4); margin-top: 4px; }
+  .apply-btn {
+    background: var(--green);
+    color: #fff;
+    border: none;
+    border-radius: var(--radius);
+    padding: 9px;
+    font-size: .85rem;
+    font-weight: 600;
+    cursor: pointer;
+    width: 100%;
+    margin-top: auto;
+  }
+  .apply-btn:hover { background: #245a42; }
+
+  /* ── MAIN ── */
+  main { flex: 1; padding: 20px; display: flex; flex-direction: column; gap: 16px; overflow: auto; }
+
+  /* ── KPI ROW ── */
+  .kpi-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; }
+  .kpi {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 14px 16px;
+  }
+  .kpi .val { font-size: 1.6rem; font-weight: 700; color: var(--green); line-height: 1; }
+  .kpi .lbl { font-size: .75rem; color: var(--grey-4); margin-top: 4px; }
+  .kpi .delta { font-size: .75rem; margin-top: 6px; }
+  .kpi .delta.pos { color: var(--green-l); }
+  .kpi .delta.neg { color: var(--amber); }
+
+  /* ── CARD ── */
+  .card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 18px 20px;
+  }
+  .card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 14px;
+  }
+  .card-header h2 { font-size: .95rem; font-weight: 700; }
+  .card-header p  { font-size: .78rem; color: var(--grey-4); margin-top: 2px; }
+  .card-header .controls { display: flex; gap: 8px; }
+  .ctrl-btn {
+    font-size: .75rem;
+    padding: 4px 10px;
+    border: 1px solid var(--grey-3);
+    border-radius: 4px;
+    background: var(--grey-1);
+    cursor: pointer;
+  }
+  .ctrl-btn.active { background: var(--green-xl); border-color: var(--green-l); color: var(--green); }
+
+  /* ── TWO-COL ── */
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .three-col { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 16px; }
+
+  /* ── FOREST PLOT ── */
+  .forest { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; }
+  .forest-row { display: grid; grid-template-columns: 160px 1fr 80px; align-items: center; gap: 8px; }
+  .forest-label { font-size: .8rem; text-align: right; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .forest-track { position: relative; height: 14px; background: var(--grey-1); border-radius: 2px; }
+  .forest-zero { position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: var(--grey-3); }
+  .forest-ci {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    height: 2px;
+    background: var(--grey-3);
+    border-radius: 1px;
+  }
+  .forest-dot {
+    position: absolute;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--green);
+    border: 2px solid #fff;
+    box-shadow: 0 0 0 1px var(--green);
+  }
+  .forest-dot.neg { background: var(--amber); box-shadow: 0 0 0 1px var(--amber); }
+  .forest-dot.ns  { background: var(--grey-4); box-shadow: 0 0 0 1px var(--grey-4); }
+  .forest-stat { font-size: .78rem; text-align: right; }
+  .forest-stat .lrr { font-weight: 700; }
+  .forest-stat .n   { color: var(--grey-4); font-size: .7rem; }
+  .forest-head {
+    display: grid;
+    grid-template-columns: 160px 1fr 80px;
+    gap: 8px;
+    font-size: .7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .6px;
+    color: var(--grey-4);
+    margin-bottom: 2px;
+  }
+  .forest-head .axis-labels {
+    display: flex;
+    justify-content: space-between;
+    padding: 0 2px;
+    font-size: .68rem;
+    font-weight: 400;
+    text-transform: none;
+    letter-spacing: 0;
+  }
+  .forest-divider { height: 1px; background: var(--grey-2); margin: 4px 0; }
+
+  /* ── MAP PLACEHOLDER ── */
+  .map-placeholder {
+    background: linear-gradient(135deg, #e8f4ea 0%, #d0ebd4 100%);
+    border-radius: 6px;
+    min-height: 260px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    color: var(--green);
+    border: 1px dashed var(--green-l);
+  }
+  .map-placeholder .icon { font-size: 2.5rem; }
+  .map-placeholder p { font-size: .8rem; color: var(--grey-4); }
+  .map-dots {
+    display: grid;
+    grid-template-columns: repeat(8,1fr);
+    gap: 6px;
+    padding: 12px;
+    width: 100%;
+    max-width: 320px;
+  }
+  .map-dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    background: var(--green);
+    opacity: .35;
+  }
+  .map-dot.big   { width: 16px; height: 16px; opacity: .6; }
+  .map-dot.huge  { width: 22px; height: 22px; opacity: .75; }
+
+  /* ── CROP BARS ── */
+  .crop-bars { display: flex; flex-direction: column; gap: 8px; }
+  .crop-bar-row { display: flex; flex-direction: column; gap: 3px; }
+  .crop-bar-label { display: flex; justify-content: space-between; font-size: .78rem; }
+  .crop-bar-label span:last-child { color: var(--grey-4); }
+  .crop-bar-track { background: var(--grey-2); border-radius: 3px; height: 8px; }
+  .crop-bar-fill  { height: 8px; border-radius: 3px; background: var(--green-l); }
+  .crop-bar-fill.amber { background: #f4a261; }
+
+  /* ── DATA TABLE ── */
+  .data-table { width: 100%; border-collapse: collapse; font-size: .8rem; }
+  .data-table th {
+    text-align: left;
+    font-size: .7rem;
+    text-transform: uppercase;
+    letter-spacing: .6px;
+    color: var(--grey-4);
+    padding: 6px 10px;
+    border-bottom: 2px solid var(--grey-2);
+  }
+  .data-table td { padding: 7px 10px; border-bottom: 1px solid var(--grey-1); }
+  .data-table tr:hover td { background: var(--grey-1); }
+  .badge-source {
+    display: inline-block;
+    font-size: .68rem;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 10px;
+  }
+  .badge-source.era   { background: #dbeafe; color: #1d4ed8; }
+  .badge-source.carob { background: var(--green-xl); color: var(--green); }
+  .lrr-pos { color: var(--green);  font-weight: 700; }
+  .lrr-neg { color: var(--amber);  font-weight: 700; }
+  .lrr-ns  { color: var(--grey-4); }
+
+  /* ── TREND SPARKLINE ── */
+  .sparkline-row { display: flex; align-items: center; gap: 10px; font-size: .78rem; }
+  .spark { display: flex; align-items: flex-end; gap: 2px; height: 40px; }
+  .spark-bar { width: 8px; background: var(--green-l); border-radius: 2px 2px 0 0; }
+  .spark-bar.hi { background: var(--green); }
+
+  /* ── INFO PANEL ── */
+  .info-strip {
+    background: #fffbeb;
+    border: 1px solid #fde68a;
+    border-radius: 6px;
+    padding: 10px 14px;
+    font-size: .78rem;
+    color: #92400e;
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+  }
+  .info-strip .icon { font-size: 1rem; flex-shrink: 0; }
+
+  /* ── FOOTER ── */
+  footer {
+    text-align: center;
+    font-size: .72rem;
+    color: var(--grey-4);
+    padding: 12px;
+    border-top: 1px solid var(--grey-2);
+    background: var(--card);
+  }
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="brand">ERA <span>×</span> Carob &nbsp;·&nbsp; Practice Effects Explorer</div>
+  <div class="tabs">
+    <a href="#" class="active">Overview</a>
+    <a href="#">Forest Plots</a>
+    <a href="#">Map</a>
+    <a href="#">Study Browser</a>
+    <a href="#">Climate ⏳</a>
+  </div>
+  <div class="badge">482 634 obs</div>
+</nav>
+
+<div class="page">
+
+  <!-- SIDEBAR -->
+  <aside>
+    <div class="filter-group">
+      <label>Data Source</label>
+      <div class="chip-group">
+        <div class="chip on">All</div>
+        <div class="chip on">ERA</div>
+        <div class="chip on">Carob</div>
+      </div>
+    </div>
+
+    <div class="filter-group">
+      <label>Crop</label>
+      <select>
+        <option>All crops</option>
+        <option>Maize</option>
+        <option>Wheat</option>
+        <option>Rice</option>
+        <option>Sorghum</option>
+        <option>Soybean</option>
+        <option>Common bean</option>
+      </select>
+    </div>
+
+    <div class="filter-group">
+      <label>Practice type</label>
+      <div class="chip-group">
+        <div class="chip on">Fertilizer</div>
+        <div class="chip on">Irrigation</div>
+        <div class="chip on">Tillage</div>
+        <div class="chip">Agroforestry</div>
+        <div class="chip">Organic</div>
+        <div class="chip">Intercrop</div>
+      </div>
+    </div>
+
+    <div class="filter-group">
+      <label>Region</label>
+      <select>
+        <option>All regions</option>
+        <option>Sub-Saharan Africa</option>
+        <option>South Asia</option>
+        <option>East Africa</option>
+        <option>West Africa</option>
+        <option>Latin America</option>
+      </select>
+    </div>
+
+    <div class="filter-group">
+      <label>Study years</label>
+      <input type="range" min="1980" max="2025" value="1980">
+      <div class="range-labels"><span>1980</span><span>2025</span></div>
+    </div>
+
+    <div class="filter-group">
+      <label>Min. studies (n)</label>
+      <input type="range" min="1" max="50" value="5">
+      <div class="range-labels"><span>1</span><span>50+</span></div>
+    </div>
+
+    <div class="filter-group">
+      <label>Effect metric</label>
+      <div class="chip-group">
+        <div class="chip on">LRR</div>
+        <div class="chip">% change</div>
+        <div class="chip">SMD</div>
+      </div>
+    </div>
+
+    <button class="apply-btn">Apply filters</button>
+  </aside>
+
+  <!-- MAIN -->
+  <main>
+
+    <!-- INFO STRIP -->
+    <div class="info-strip">
+      <span class="icon">⚠️</span>
+      <span><strong>Response ratio method:</strong> Log Response Ratio (LRR = ln(treatment yield ÷ control yield)) computed within each <code>dataset_id</code>. Rows where <code>treatment</code> matches a control label are used as baseline. Climate covariates not yet linked — coming in next phase.</span>
+    </div>
+
+    <!-- KPIs -->
+    <div class="kpi-row">
+      <div class="kpi">
+        <div class="val">1 720</div>
+        <div class="lbl">Studies</div>
+        <div class="delta pos">▲ 1 507 new from ERA</div>
+      </div>
+      <div class="kpi">
+        <div class="val">482 k</div>
+        <div class="lbl">Observations</div>
+        <div class="delta pos">▲ 244 k from ERA</div>
+      </div>
+      <div class="kpi">
+        <div class="val">51</div>
+        <div class="lbl">Countries</div>
+        <div class="delta">SSA · South Asia · LatAm</div>
+      </div>
+      <div class="kpi">
+        <div class="val">38</div>
+        <div class="lbl">Crop species</div>
+        <div class="delta">Maize · Wheat · Rice top 3</div>
+      </div>
+      <div class="kpi">
+        <div class="val">+31%</div>
+        <div class="lbl">Median yield effect (fertilizer)</div>
+        <div class="delta pos">LRR = +0.27 · p &lt; 0.001</div>
+      </div>
+    </div>
+
+    <!-- FOREST PLOT + MAP -->
+    <div class="three-col">
+
+      <!-- FOREST PLOT -->
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <h2>Yield effect by practice (LRR)</h2>
+            <p>Pooled log response ratio · bars = 95% CI · size ∝ n studies</p>
+          </div>
+          <div class="controls">
+            <button class="ctrl-btn active">All crops</button>
+            <button class="ctrl-btn">Maize</button>
+            <button class="ctrl-btn">Wheat</button>
+          </div>
+        </div>
+
+        <div class="forest">
+          <div class="forest-head">
+            <span>Practice</span>
+            <div class="axis-labels"><span>−60%</span><span>0</span><span>+100%</span></div>
+            <span>LRR [95% CI]</span>
+          </div>
+
+          <!-- N fertilizer -->
+          <div class="forest-row">
+            <div class="forest-label">N fertilizer</div>
+            <div class="forest-track">
+              <div class="forest-zero"></div>
+              <div class="forest-ci" style="left:32%;width:32%;"></div>
+              <div class="forest-dot" style="left:58%;"></div>
+            </div>
+            <div class="forest-stat"><div class="lrr lrr-pos">+0.27 **</div><div class="n">n=412</div></div>
+          </div>
+
+          <!-- P fertilizer -->
+          <div class="forest-row">
+            <div class="forest-label">P fertilizer</div>
+            <div class="forest-track">
+              <div class="forest-zero"></div>
+              <div class="forest-ci" style="left:38%;width:22%;"></div>
+              <div class="forest-dot" style="left:54%;"></div>
+            </div>
+            <div class="forest-stat"><div class="lrr lrr-pos">+0.18 **</div><div class="n">n=287</div></div>
+          </div>
+
+          <!-- Irrigation -->
+          <div class="forest-row">
+            <div class="forest-label">Irrigation</div>
+            <div class="forest-track">
+              <div class="forest-zero"></div>
+              <div class="forest-ci" style="left:40%;width:28%;"></div>
+              <div class="forest-dot" style="left:62%;"></div>
+            </div>
+            <div class="forest-stat"><div class="lrr lrr-pos">+0.34 **</div><div class="n">n=198</div></div>
+          </div>
+
+          <div class="forest-divider"></div>
+
+          <!-- Zero tillage -->
+          <div class="forest-row">
+            <div class="forest-label">Zero tillage</div>
+            <div class="forest-track">
+              <div class="forest-zero"></div>
+              <div class="forest-ci" style="left:43%;width:14%;"></div>
+              <div class="forest-dot ns" style="left:50%;"></div>
+            </div>
+            <div class="forest-stat"><div class="lrr lrr-ns">+0.01 ns</div><div class="n">n=143</div></div>
+          </div>
+
+          <!-- Intercropping -->
+          <div class="forest-row">
+            <div class="forest-label">Intercropping</div>
+            <div class="forest-track">
+              <div class="forest-zero"></div>
+              <div class="forest-ci" style="left:36%;width:20%;"></div>
+              <div class="forest-dot" style="left:49%;"></div>
+            </div>
+            <div class="forest-stat"><div class="lrr lrr-pos">+0.09 *</div><div class="n">n=89</div></div>
+          </div>
+
+          <!-- Organic matter -->
+          <div class="forest-row">
+            <div class="forest-label">Organic matter</div>
+            <div class="forest-track">
+              <div class="forest-zero"></div>
+              <div class="forest-ci" style="left:39%;width:18%;"></div>
+              <div class="forest-dot" style="left:52%;"></div>
+            </div>
+            <div class="forest-stat"><div class="lrr lrr-pos">+0.13 **</div><div class="n">n=76</div></div>
+          </div>
+
+          <div class="forest-divider"></div>
+
+          <!-- Reduced tillage -->
+          <div class="forest-row">
+            <div class="forest-label">Reduced tillage</div>
+            <div class="forest-track">
+              <div class="forest-zero"></div>
+              <div class="forest-ci" style="left:38%;width:16%;"></div>
+              <div class="forest-dot ns" style="left:47%;"></div>
+            </div>
+            <div class="forest-stat"><div class="lrr lrr-neg">−0.04 ns</div><div class="n">n=64</div></div>
+          </div>
+
+          <!-- Biochar -->
+          <div class="forest-row">
+            <div class="forest-label">Biochar</div>
+            <div class="forest-track">
+              <div class="forest-zero"></div>
+              <div class="forest-ci" style="left:37%;width:20%;"></div>
+              <div class="forest-dot" style="left:53%;"></div>
+            </div>
+            <div class="forest-stat"><div class="lrr lrr-pos">+0.11 *</div><div class="n">n=41</div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- MAP -->
+      <div class="card">
+        <div class="card-header">
+          <div><h2>Study locations</h2><p>1 753 sites · colour = data source</p></div>
+        </div>
+        <div class="map-placeholder">
+          <div class="map-dots">
+            <div class="map-dot big"></div><div class="map-dot"></div><div class="map-dot huge"></div>
+            <div class="map-dot"></div><div class="map-dot big"></div><div class="map-dot"></div>
+            <div class="map-dot"></div><div class="map-dot huge"></div><div class="map-dot big"></div>
+            <div class="map-dot"></div><div class="map-dot"></div><div class="map-dot big"></div>
+            <div class="map-dot huge"></div><div class="map-dot"></div><div class="map-dot"></div>
+            <div class="map-dot big"></div><div class="map-dot"></div><div class="map-dot"></div>
+          </div>
+          <p>🗺 Interactive map (Leaflet) — lat/lon from merged dataset</p>
+          <p style="font-size:.72rem">● ERA &nbsp;● Carob &nbsp;● Both</p>
+        </div>
+      </div>
+
+      <!-- CROP BREAKDOWN -->
+      <div class="card">
+        <div class="card-header">
+          <div><h2>Studies by crop</h2><p>Top 8 crops</p></div>
+        </div>
+        <div class="crop-bars">
+          <div class="crop-bar-row">
+            <div class="crop-bar-label"><span>Maize</span><span>487 studies</span></div>
+            <div class="crop-bar-track"><div class="crop-bar-fill" style="width:100%"></div></div>
+          </div>
+          <div class="crop-bar-row">
+            <div class="crop-bar-label"><span>Wheat</span><span>312 studies</span></div>
+            <div class="crop-bar-track"><div class="crop-bar-fill" style="width:64%"></div></div>
+          </div>
+          <div class="crop-bar-row">
+            <div class="crop-bar-label"><span>Rice</span><span>198 studies</span></div>
+            <div class="crop-bar-track"><div class="crop-bar-fill" style="width:41%"></div></div>
+          </div>
+          <div class="crop-bar-row">
+            <div class="crop-bar-label"><span>Sorghum</span><span>143 studies</span></div>
+            <div class="crop-bar-track"><div class="crop-bar-fill amber" style="width:29%"></div></div>
+          </div>
+          <div class="crop-bar-row">
+            <div class="crop-bar-label"><span>Soybean</span><span>121 studies</span></div>
+            <div class="crop-bar-track"><div class="crop-bar-fill amber" style="width:25%"></div></div>
+          </div>
+          <div class="crop-bar-row">
+            <div class="crop-bar-label"><span>Common bean</span><span>98 studies</span></div>
+            <div class="crop-bar-track"><div class="crop-bar-fill amber" style="width:20%"></div></div>
+          </div>
+          <div class="crop-bar-row">
+            <div class="crop-bar-label"><span>Cassava</span><span>67 studies</span></div>
+            <div class="crop-bar-track"><div class="crop-bar-fill amber" style="width:14%"></div></div>
+          </div>
+          <div class="crop-bar-row">
+            <div class="crop-bar-label"><span>Groundnut</span><span>54 studies</span></div>
+            <div class="crop-bar-track"><div class="crop-bar-fill amber" style="width:11%"></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- BOTTOM ROW -->
+    <div class="two-col">
+
+      <!-- STUDY BROWSER TABLE -->
+      <div class="card">
+        <div class="card-header">
+          <div><h2>Study browser</h2><p>Click a row to expand individual trial results</p></div>
+          <div class="controls">
+            <button class="ctrl-btn">Export CSV</button>
+            <button class="ctrl-btn active">Filter active</button>
+          </div>
+        </div>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Dataset ID</th>
+              <th>Source</th>
+              <th>Crop</th>
+              <th>Country</th>
+              <th>Practice</th>
+              <th>LRR</th>
+              <th>n obs</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>AC0002</td>
+              <td><span class="badge-source era">ERA</span></td>
+              <td>Maize</td>
+              <td>Kenya</td>
+              <td>N fertilizer</td>
+              <td class="lrr-pos">+0.42</td>
+              <td>48</td>
+            </tr>
+            <tr>
+              <td>doi_10.18167…</td>
+              <td><span class="badge-source carob">Carob</span></td>
+              <td>Maize</td>
+              <td>Ethiopia</td>
+              <td>Irrigation</td>
+              <td class="lrr-pos">+0.31</td>
+              <td>32</td>
+            </tr>
+            <tr>
+              <td>AG0014</td>
+              <td><span class="badge-source era">ERA</span></td>
+              <td>Wheat</td>
+              <td>India</td>
+              <td>Zero tillage</td>
+              <td class="lrr-ns">−0.02</td>
+              <td>24</td>
+            </tr>
+            <tr>
+              <td>CJ0031</td>
+              <td><span class="badge-source era">ERA</span></td>
+              <td>Sorghum</td>
+              <td>Mali</td>
+              <td>P fertilizer</td>
+              <td class="lrr-pos">+0.19</td>
+              <td>18</td>
+            </tr>
+            <tr>
+              <td>doi_10.18167…</td>
+              <td><span class="badge-source carob">Carob</span></td>
+              <td>Rice</td>
+              <td>Bangladesh</td>
+              <td>Organic matter</td>
+              <td class="lrr-neg">−0.08</td>
+              <td>56</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- TREND + COMING SOON -->
+      <div style="display:flex;flex-direction:column;gap:16px;">
+
+        <!-- YIELD TREND -->
+        <div class="card">
+          <div class="card-header">
+            <div><h2>Mean yield trend over time</h2><p>All crops · treatment arms only</p></div>
+          </div>
+          <div style="display:flex;align-items:flex-end;gap:4px;height:80px;padding:8px 0;">
+            <div style="flex:1;background:var(--green-l);border-radius:2px 2px 0 0;height:45%;opacity:.7"></div>
+            <div style="flex:1;background:var(--green-l);border-radius:2px 2px 0 0;height:50%;opacity:.75"></div>
+            <div style="flex:1;background:var(--green-l);border-radius:2px 2px 0 0;height:48%;opacity:.8"></div>
+            <div style="flex:1;background:var(--green-l);border-radius:2px 2px 0 0;height:55%"></div>
+            <div style="flex:1;background:var(--green-l);border-radius:2px 2px 0 0;height:58%"></div>
+            <div style="flex:1;background:var(--green);border-radius:2px 2px 0 0;height:62%"></div>
+            <div style="flex:1;background:var(--green);border-radius:2px 2px 0 0;height:60%"></div>
+            <div style="flex:1;background:var(--green);border-radius:2px 2px 0 0;height:70%"></div>
+            <div style="flex:1;background:var(--green);border-radius:2px 2px 0 0;height:75%"></div>
+            <div style="flex:1;background:var(--green);border-radius:2px 2px 0 0;height:80%"></div>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:.7rem;color:var(--grey-4);margin-top:4px;">
+            <span>1995</span><span>2000</span><span>2005</span><span>2010</span><span>2015</span><span>2020</span><span>2025</span>
+          </div>
+        </div>
+
+        <!-- CLIMATE PHASE -->
+        <div class="card" style="border: 1.5px dashed var(--grey-3);">
+          <div class="card-header">
+            <div><h2>🌧 Climate phase — coming next</h2><p>Link planting dates to ERA5 / CHIRPS climate grids</p></div>
+          </div>
+          <div style="font-size:.8rem;color:var(--grey-4);line-height:1.6;">
+            <p>Planned additions:</p>
+            <ul style="margin-left:16px;margin-top:6px;display:flex;flex-direction:column;gap:4px;">
+              <li>Seasonal rainfall (CHIRPS) matched to <code>planting_date</code> + <code>latitude/longitude</code></li>
+              <li>Growing-season Tmax / Tmin from ERA5</li>
+              <li>Drought stress index per trial</li>
+              <li>Forest plots stratified by rainfall quartile</li>
+              <li>Practice × climate interaction effects</li>
+            </ul>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<footer>
+  ERA × Carob Practice Effects Explorer · 482 634 observations · 1 720 studies · 51 countries · Data: ERA (CGIAR) + Carob · Wireframe v0.1
+</footer>
+
+</body>
+</html>
