@@ -1,0 +1,241 @@
+---
+title: "ERA × Carob"
+output:
+  github_document:
+    toc: true
+    toc_depth: 2
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+library(knitr)
+
+# Load pre-computed report outputs (produced by era_carob_report.R)
+# These are small CSVs — no need to reload the full merged dataset
+overlap   <- tryCatch(read.csv("report/era_carob_overlap.csv"),     error = function(e) NULL)
+dropped   <- tryCatch(read.csv("report/era_dropped_columns.csv"),   error = function(e) NULL)
+complete  <- tryCatch(read.csv("report/field_completeness.csv"),    error = function(e) NULL)
+coverage  <- tryCatch(read.csv("report/coverage_summary.csv"),      error = function(e) NULL)
+```
+
+# ERA → Carob: Transforming ERA Agronomic Data into the Carob Standard Format
+
+This repository contains R scripts that load the ERA agronomic database, reformat it to match the [Carob](https://carob-data.org) data standard, and merge it with the existing Carob dataset to create a unified meta-analysis resource.
+
+---
+
+## What is ERA?
+
+ERA (Evidence for Resilient Agriculture) is a peer-reviewed agronomic database maintained by CGIAR. It contains over 110,000 observations from ~1,720 studies across 51 countries, covering crops, soils, management practices, and yield outcomes.
+
+## What is Carob?
+
+Carob is an open agricultural data platform that standardises experimental datasets into a common schema (~238,000 observations, ~197 datasets).
+
+---
+
+## Scripts
+
+| Script | Purpose | Output |
+|--------|---------|--------|
+| `script/era_carob.R` | Transform ERA → Carob format | `dwf` |
+| `script/era_carob_merge.R` | Deduplicate, align schema, merge | `merged` |
+| `script/era_carob_report.R` | Coverage report + visualisations | `report/` |
+
+Run in order: `era_carob.R` → `era_carob_merge.R` → `era_carob_report.R`
+
+Then re-knit this file to update the README:
+```r
+rmarkdown::render("README.Rmd")
+```
+
+---
+
+## Coverage Report
+
+### What ERA added to Carob
+
+```{r coverage-table, results='asis'}
+if (!is.null(coverage)) {
+  kable(coverage, col.names = c("Metric", "Value"), align = c("l", "r"))
+} else {
+  cat("_Run `era_carob_report.R` to generate this table._\n")
+}
+```
+
+### Studies already in both ERA and Carob
+
+```{r overlap-table, results='asis'}
+if (!is.null(overlap) && nrow(overlap) > 0) {
+  cat(paste0("**", nrow(overlap), "** ERA studies were already present in Carob (matched on journal DOI):\n\n"))
+  kable(overlap, col.names = c("ERA dataset ID", "Journal DOI", "Carob ID"))
+} else {
+  cat("_Run `era_carob_report.R` to generate this table._\n")
+}
+```
+
+### Observations by crop
+
+```{r crop-plot, fig.width=8, fig.height=6, dpi=150}
+if (file.exists("report/01_crop_coverage.png")) {
+  knitr::include_graphics("report/01_crop_coverage.png")
+}
+```
+
+### Observations by country
+
+```{r country-plot, fig.width=8, fig.height=7, dpi=150}
+if (file.exists("report/02_country_coverage.png")) {
+  knitr::include_graphics("report/02_country_coverage.png")
+}
+```
+
+### Field completeness: ERA vs Carob
+
+```{r completeness-plot, fig.width=9, fig.height=7, dpi=150}
+if (file.exists("report/03_field_completeness.png")) {
+  knitr::include_graphics("report/03_field_completeness.png")
+}
+```
+
+### Fields with 0% completeness in ERA rows
+
+These Carob fields have no equivalent in ERA and will always be `NA` for ERA-sourced rows:
+
+```{r missing-fields, results='asis'}
+if (!is.null(complete)) {
+  missing <- complete %>% filter(source == "era", pct_complete == 0) %>% pull(field)
+  if (length(missing) > 0) {
+    cat(paste0("- `", missing, "`\n", collapse = ""))
+  }
+} else {
+  cat("_Run `era_carob_report.R` to generate this table._\n")
+}
+```
+
+### Fields with <25% completeness in ERA rows
+
+```{r sparse-fields, results='asis'}
+if (!is.null(complete)) {
+  sparse <- complete %>%
+    filter(source == "era", pct_complete > 0, pct_complete < 25) %>%
+    arrange(pct_complete) %>%
+    select(field, pct_complete)
+  if (nrow(sparse) > 0) {
+    kable(sparse, col.names = c("Field", "% complete in ERA rows"), digits = 1)
+  }
+} else {
+  cat("_Run `era_carob_report.R` to generate this table._\n")
+}
+```
+
+### ERA-only columns dropped during merge
+
+```{r dropped-cols, results='asis'}
+if (!is.null(dropped)) {
+  kable(dropped, col.names = c("Category", "N columns", "Examples"))
+} else {
+  cat("_Run `era_carob_report.R` to generate this table._\n")
+}
+```
+
+---
+
+## `era_carob.R` — ERA to Carob format
+
+<details>
+<summary><strong>Step 1 — Data loading</strong></summary>
+
+ERA data is loaded from a public S3 bucket (`s3://digital-atlas/era`) rather than a local file. The script:
+- Finds the latest `era_agronomy_bundle_*.tar.gz` in the S3 bucket
+- Downloads and extracts it to `downloaded_data/` (only if not already present — cached)
+- Loads three files:
+  - `agronomic_*.json` → `era_merge` (the relational table list)
+  - `era_master_codes*.json` → `era_master` (vocabulary/lookup codes)
+  - `era_compiled*.parquet` → `ERA_Compiled` (compiled flat table)
+
+> `downloaded_data/` is in `.gitignore` — the bundle is too large (~473 MB) for GitHub.
+
+</details>
+
+<details>
+<summary><strong>Step 2 — Merging ERA sub-tables</strong></summary>
+
+ERA stores data across 12 relational sub-tables merged into a single flat data frame `rb`:
+
+| Sub-table | Content |
+|-----------|---------|
+| `Data.Out` | Core outcome and site data (baseline) |
+| `Prod.Out` | Production/yield variables |
+| `Till.Out` | Tillage method and mechanisation |
+| `Plant.Method` | Planting density, method, row spacing |
+| `Fert.Method` | Fertilizer type, amount, timing |
+| `Chems.Out` | Herbicides, insecticides, fungicides, biopesticides |
+| `Res.Method` | Residue management |
+| `Res.Comp` | Residue composition |
+| `pH.Out` / `pH.Method` | Soil pH measurements and method |
+| `Irrig.Method` | Irrigation amount, method, dates |
+| `WH.Out` | Water harvesting |
+| `Soil.Out` | Soil properties (long → wide per study) |
+
+**Filtering:** rows with `Site.ID == "All Sites"` and `Product.Type == "Animal"` are removed.
+
+</details>
+
+<details>
+<summary><strong>Steps 3–12 — Variable mapping, cleaning, harmonisation</strong></summary>
+
+See the full pipeline documentation in [script/era_carob.R](script/era_carob.R).
+
+Key decisions:
+- **Coordinates:** multiple decimal points removed; `carobiner::fix_name()` applied
+- **Fertilizer values:** sentinel values (999/999999) → NA; first numeric token extracted (fixes truncation bug)
+- **Irrigation:** `irrigation_amount` correctly mapped to `I.Amount` (was `I.Method`); `irrigated` flag uses `!is.na(I.Amount) & I.Amount != 0`
+- **Plant density:** split into `seed_density`, `seed_rate`, `plant_density` based on unit strings
+- **Land prep:** free-text ERA codes harmonised to 17 controlled vocabulary terms
+- **Yield part:** ERA compound terms mapped to 10 Carob categories
+- **Intercrops:** `***`-delimited → `;`-delimited
+
+</details>
+
+---
+
+## `era_carob_merge.R` — Deduplication, schema alignment, merge
+
+<details>
+<summary><strong>Step 1 — Duplicate detection</strong></summary>
+
+ERA `uri` = journal DOI; Carob `uri` = data repository DOI. Matching done on `carob_index$metadata$publication` (journal DOI) after normalising both sides (strip `doi:`, replace `_` with `/`, lowercase).
+
+</details>
+
+<details>
+<summary><strong>Step 2 — Schema alignment</strong></summary>
+
+Full Carob schema taken from `carob_index$wide` (313 columns). Key fixes:
+- `Soil_NO3`/`Soil_NH4` (uppercase duplicates) dropped
+- `soil_depth` string split into numeric `depth_top` + `depth_bottom`
+- Spurious `"NA"` column dropped
+- 195 missing Carob columns added as `NA`
+- ERA-only columns dropped (economics, ERA-internal, unmapped outcomes)
+
+</details>
+
+<details>
+<summary><strong>Step 3 — Merge</strong></summary>
+
+`carobiner::bindr` row-binds Carob first, ERA second. `source` column added (`"carob"` / `"era"`).
+
+</details>
+
+---
+
+## Known limitations and future work
+
+- Country harmonisation covers only a subset of multi-country ERA strings
+- `land_prep_method` and `yield_part` use hardcoded `ifelse` chains — replace with Carob vocabulary lookups when available
+- 195 Carob schema fields are `NA` for all ERA rows
+- Climate linkage (ERA5 / CHIRPS matched to planting date + coordinates) planned as next phase

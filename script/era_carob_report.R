@@ -191,4 +191,38 @@ print(dropped_summary)
 write.csv(dropped_summary, "report/era_dropped_columns.csv", row.names = FALSE)
 cat("Saved: report/era_dropped_columns.csv\n")
 
+# ============================================================
+# 8. Export small CSVs for README.Rmd
+# ============================================================
+
+# Field completeness — used by README.Rmd
+write.csv(completeness, "report/field_completeness.csv", row.names = FALSE)
+
+# Coverage summary headline numbers — used by README.Rmd
+coverage_summary <- data.frame(
+  metric = c(
+    "ERA observations added",
+    "ERA studies added",
+    "ERA studies already in Carob",
+    "New countries from ERA",
+    "New crops from ERA",
+    "Total observations (merged)",
+    "Total columns (merged)"
+  ),
+  value = c(
+    era_rows,
+    era_studies,
+    nrow(already_in_carob),
+    length(new_countries),
+    length(new_crops),
+    nrow(merged),
+    ncol(merged)
+  )
+)
+write.csv(coverage_summary, "report/coverage_summary.csv", row.names = FALSE)
+cat("Saved: report/field_completeness.csv\n")
+cat("Saved: report/coverage_summary.csv\n")
+
 cat("\n=== Report complete. Files saved to report/ ===\n")
+cat("To update README.md with latest figures and stats, run:\n")
+cat("  rmarkdown::render('README.Rmd')\n")
