@@ -196,22 +196,184 @@ flat data frame `rb`:
 </details>
 <details>
 <summary>
-<strong>Steps 3–12 — Variable mapping, cleaning, harmonisation</strong>
+<strong>Step 3 — Variable selection and renaming</strong>
 </summary>
 
-See the full pipeline documentation in
-[script/era_carob.R](script/era_carob.R).
+The merged table `rb` has 400+ ERA-specific column names. The script
+builds a new data frame `d` mapping ERA columns to Carob names:
 
-Key decisions: - **Coordinates:** multiple decimal points removed;
-`carobiner::fix_name()` applied - **Fertilizer values:** sentinel values
-(999/999999) → NA; first numeric token extracted (fixes truncation
-bug) - **Irrigation:** `irrigation_amount` correctly mapped to
-`I.Amount` (was `I.Method`); `irrigated` flag uses
-`!is.na(I.Amount) & I.Amount != 0` - **Plant density:** split into
-`seed_density`, `seed_rate`, `plant_density` based on unit strings -
-**Land prep:** free-text ERA codes harmonised to 17 controlled
-vocabulary terms - **Yield part:** ERA compound terms mapped to 10 Carob
-categories - **Intercrops:** `***`-delimited → `;`-delimited
+| ERA column                    | Carob column                                                    | Notes                                                            |
+|-------------------------------|-----------------------------------------------------------------|------------------------------------------------------------------|
+| `B.DOI`                       | `uri`                                                           | Journal article DOI                                              |
+| `B.Author.Last`               | `reference`                                                     | Last name of first author                                        |
+| `B.Code`                      | `dataset_id`                                                    | ERA study code                                                   |
+| `Site.ID`                     | `location`                                                      | Site name                                                        |
+| `Site.Type`                   | `on_farm`                                                       | On-farm vs research station                                      |
+| `Site.LatD` / `Site.LonD`     | `latitude` / `longitude`                                        | Truncated to 6 chars before cleaning                             |
+| `Site.MAP`                    | `rain`                                                          | Mean annual precipitation                                        |
+| `Site.Elevation`              | `elevation`                                                     |                                                                  |
+| `Site.Soil.Texture`           | `soil_type`                                                     |                                                                  |
+| `Time.Clim.Temp.Mean/Max/Min` | `temp` / `tmax` / `tmin`                                        | ERA-specific — not in Carob schema                               |
+| `Time.Clim.SP`                | `seasonal_prep`                                                 | ERA-specific — not in Carob schema                               |
+| `EX.Design`                   | `dsign`                                                         | Experimental design                                              |
+| `P.Product`                   | `crop`                                                          | Crop species                                                     |
+| `T.Name` / `F.Level.Name`     | `treatment`                                                     | Falls back to fertilizer level name if treatment name is missing |
+| `T.Control`                   | `control_T`                                                     | TRUE/FALSE control flag                                          |
+| `F.NI`                        | `N_fertilizer`                                                  | Inorganic N                                                      |
+| `F.PI` / `F.P2O5`             | `P_fertilizer`                                                  | Uses P2O5 if PI is missing                                       |
+| `F.KI` / `F.K2O`              | `K_fertilizer`                                                  | Uses K2O if KI is missing                                        |
+| `I.Amount`                    | `irrigation_amount`                                             | Fixed: was incorrectly assigned `I.Method`                       |
+| `I.Method`                    | `irrigation_method`                                             | Added — was missing from original script                         |
+| `Plant.Density`               | `plant_density`                                                 | Split into `seed_density` / `seed_rate` based on units           |
+| `C.Type` + `C.Amount` etc.    | `herbicide_*` / `insecticide_*` / `fungicide_*` / `pesticide_*` | Detected from `C.Type` using `grepl`                             |
+
+</details>
+<details>
+<summary>
+<strong>Step 4 — Seed density unit standardisation</strong>
+</summary>
+
+ERA stores planting density with a separate units column. The script
+splits into three Carob fields:
+
+- `seed_density` — seeds or kg seed per ha (converted from per m² ×
+  10,000 where needed)
+- `seed_rate` — kg/ha seeding rate
+- `plant_density` — plants per ha (converted from per m² × 10,000 where
+  needed)
+
+**Decision:** Once a row is classified into `seed_density` or
+`seed_rate`, `plant_density` is set to NA to avoid double-counting. The
+`units` column is then dropped.
+
+</details>
+<details>
+<summary>
+<strong>Step 5 — Country name cleaning</strong>
+</summary>
+
+ERA stores some country values as combined strings. The script resolves
+these via a hardcoded `ifelse` chain:
+
+| ERA value           | Resolved to                      |
+|---------------------|----------------------------------|
+| `"Benin..Togo"`     | `"Benin"`                        |
+| `"Ghana..Benin"`    | `"Ghana"`                        |
+| `"Kenya..Kenya"`    | `"Kenya"`                        |
+| `"Drc"` / `"Congo"` | `"Democratic Republic of Congo"` |
+
+> **Known limitation:** Only a subset of multi-country strings are
+> handled. Unmatched values pass through unchanged.
+
+</details>
+<details>
+<summary>
+<strong>Step 6 — Intercrop parsing</strong>
+</summary>
+
+ERA stores intercrop species as `***`-delimited strings
+(e.g. `"Maize***Beans***Sorghum"`). The script splits these,
+standardises a small number of long scientific names
+(e.g. `"Mangifera indica"` → `"Mangifera"`), and rejoins with `;` as the
+Carob separator.
+
+</details>
+<details>
+<summary>
+<strong>Step 7 — Organic matter flag</strong>
+</summary>
+
+`OM_used` is set to `TRUE` if any of `N_organic`, `P_organic`, or
+`K_organic` is non-zero. This is a derived binary flag not present in
+the raw ERA data.
+
+</details>
+<details>
+<summary>
+<strong>Step 8 — Coordinate cleaning</strong>
+</summary>
+
+Latitude and longitude values in ERA sometimes contain multiple decimal
+points (e.g. `"1.23.45"`). The cleaning pipeline: 1. Truncates to 6
+characters 2. Removes extra decimal points (keep only the first) 3.
+Applies `carobiner::fix_name()` to handle encoding artefacts 4. Strips
+trailing dots 5. Converts to numeric
+
+</details>
+<details>
+<summary>
+<strong>Step 9 — Fertilizer value cleaning</strong>
+</summary>
+
+N, P, and K fertilizer values can contain concatenated strings, NA
+artefacts, and sentinel values. Per nutrient: 1. `carobiner::fix_name()`
+— fixes encoding 2. Remove `NA.` / `.NA` artefacts 3. Replace multiple
+dots with spaces 4. Replace ERA sentinel values `999` / `999999` with
+`NA` 5. Extract first space-delimited token and convert to numeric
+
+> **Fixed bug:** The original script used `substr(..., 1, 3)` which
+> truncated values ≥ 1000 (e.g. 1200 → 120). Replaced with
+> `gsub("\\s.*", "")`.
+
+</details>
+<details>
+<summary>
+<strong>Step 10 — Long-to-wide pivot (response variables)</strong>
+</summary>
+
+ERA stores outcome variables in long format. The script pivots to wide
+format per study using `proc()`, then renames key columns:
+
+| ERA variable name              | Carob column   |
+|--------------------------------|----------------|
+| `Crop_Yield`                   | `yield`        |
+| `Soil_Organic_Carbon`          | `soil_SOC`     |
+| `Soil_Total_Nitrogen`          | `soil_total_N` |
+| `Soil_Nitrogen`                | `soil_N`       |
+| `Soil_Organic_Matter`          | `soil_SOM`     |
+| `Carbon_Dioxide_Emissions`     | `soil_CO2`     |
+| `Soil_Organic_Carbon_(Change)` | `soil_ex_SOC`  |
+
+</details>
+<details>
+<summary>
+<strong>Step 11 — Land preparation method harmonisation</strong>
+</summary>
+
+Harmonised from ERA free-text codes to a controlled vocabulary.
+Fallback: if `T.Method` is missing, `Till.Other` is used.
+
+| ERA codes matched             | Carob value         |
+|-------------------------------|---------------------|
+| `CT`, `CONV`, `Conventional`  | `"conventional"`    |
+| `NT`, `ZT`, `No-till`, `zero` | `"zero tillage"`    |
+| `MT`, `Min Till`              | `"minimum tillage"` |
+| `RT`, `reduced`               | `"reduced tillage"` |
+| `Ridge`, `Ridging`            | `"ridge tillage"`   |
+| `Hand Hoe`, `hoe`             | `"hoeing"`          |
+| `Plough`, `Ploughed`          | `"ploughing"`       |
+| `Basins`, `BASINS`            | `"basins"`          |
+| `puddled plots`               | `"puddled"`         |
+| `furrow dikes`                | `"open furrows"`    |
+
+> **Known limitation:** Terms not matched pass through as-is.
+
+</details>
+<details>
+<summary>
+<strong>Step 12 — Yield part harmonisation</strong>
+</summary>
+
+| ERA term                        | Carob value             |
+|---------------------------------|-------------------------|
+| `Grain/Seed`                    | `"grain"`               |
+| `Pods` / `Nuts`                 | `"pod"`                 |
+| `Tuber/Root` / `Bulb`           | `"roots"`               |
+| `Stem/Stalks`                   | `"stems"`               |
+| `Whole Plant` / `Stalks+Leaves` | `"aboveground biomass"` |
+| `Biomass` / `Haulm`             | `"biomass"`             |
+| `Corm` / `Cormel` / `corn`      | `"grain"`               |
+| `Unspecified` / `Cane`          | `"none"`                |
 
 </details>
 

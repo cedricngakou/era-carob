@@ -1026,24 +1026,402 @@ flat data frame <code>rb</code>:</p>
 </details>
 <details>
 <summary>
-<strong>Steps 3–12 — Variable mapping, cleaning, harmonisation</strong>
+<strong>Step 3 — Variable selection and renaming</strong>
 </summary>
 
-<p>See the full pipeline documentation in <a href="script/era_carob.R">script/era_carob.R</a>.</p>
-<p>Key decisions: - <strong>Coordinates:</strong> multiple decimal
-points removed; <code>carobiner::fix_name()</code> applied -
-<strong>Fertilizer values:</strong> sentinel values (999/999999) → NA;
-first numeric token extracted (fixes truncation bug) -
-<strong>Irrigation:</strong> <code>irrigation_amount</code> correctly
-mapped to <code>I.Amount</code> (was <code>I.Method</code>);
-<code>irrigated</code> flag uses
-<code>!is.na(I.Amount) &amp; I.Amount != 0</code> - <strong>Plant
-density:</strong> split into <code>seed_density</code>,
-<code>seed_rate</code>, <code>plant_density</code> based on unit strings
-- <strong>Land prep:</strong> free-text ERA codes harmonised to 17
-controlled vocabulary terms - <strong>Yield part:</strong> ERA compound
-terms mapped to 10 Carob categories - <strong>Intercrops:</strong>
-<code>***</code>-delimited → <code>;</code>-delimited</p>
+<p>The merged table <code>rb</code> has 400+ ERA-specific column names.
+The script builds a new data frame <code>d</code> mapping ERA columns to
+Carob names:</p>
+<table>
+<thead>
+<tr class="header">
+<th>ERA column</th>
+<th>Carob column</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>B.DOI</code></td>
+<td><code>uri</code></td>
+<td>Journal article DOI</td>
+</tr>
+<tr class="even">
+<td><code>B.Author.Last</code></td>
+<td><code>reference</code></td>
+<td>Last name of first author</td>
+</tr>
+<tr class="odd">
+<td><code>B.Code</code></td>
+<td><code>dataset_id</code></td>
+<td>ERA study code</td>
+</tr>
+<tr class="even">
+<td><code>Site.ID</code></td>
+<td><code>location</code></td>
+<td>Site name</td>
+</tr>
+<tr class="odd">
+<td><code>Site.Type</code></td>
+<td><code>on_farm</code></td>
+<td>On-farm vs research station</td>
+</tr>
+<tr class="even">
+<td><code>Site.LatD</code> / <code>Site.LonD</code></td>
+<td><code>latitude</code> / <code>longitude</code></td>
+<td>Truncated to 6 chars before cleaning</td>
+</tr>
+<tr class="odd">
+<td><code>Site.MAP</code></td>
+<td><code>rain</code></td>
+<td>Mean annual precipitation</td>
+</tr>
+<tr class="even">
+<td><code>Site.Elevation</code></td>
+<td><code>elevation</code></td>
+<td></td>
+</tr>
+<tr class="odd">
+<td><code>Site.Soil.Texture</code></td>
+<td><code>soil_type</code></td>
+<td></td>
+</tr>
+<tr class="even">
+<td><code>Time.Clim.Temp.Mean/Max/Min</code></td>
+<td><code>temp</code> / <code>tmax</code> / <code>tmin</code></td>
+<td>ERA-specific — not in Carob schema</td>
+</tr>
+<tr class="odd">
+<td><code>Time.Clim.SP</code></td>
+<td><code>seasonal_prep</code></td>
+<td>ERA-specific — not in Carob schema</td>
+</tr>
+<tr class="even">
+<td><code>EX.Design</code></td>
+<td><code>dsign</code></td>
+<td>Experimental design</td>
+</tr>
+<tr class="odd">
+<td><code>P.Product</code></td>
+<td><code>crop</code></td>
+<td>Crop species</td>
+</tr>
+<tr class="even">
+<td><code>T.Name</code> / <code>F.Level.Name</code></td>
+<td><code>treatment</code></td>
+<td>Falls back to fertilizer level name if treatment name is
+missing</td>
+</tr>
+<tr class="odd">
+<td><code>T.Control</code></td>
+<td><code>control_T</code></td>
+<td>TRUE/FALSE control flag</td>
+</tr>
+<tr class="even">
+<td><code>F.NI</code></td>
+<td><code>N_fertilizer</code></td>
+<td>Inorganic N</td>
+</tr>
+<tr class="odd">
+<td><code>F.PI</code> / <code>F.P2O5</code></td>
+<td><code>P_fertilizer</code></td>
+<td>Uses P2O5 if PI is missing</td>
+</tr>
+<tr class="even">
+<td><code>F.KI</code> / <code>F.K2O</code></td>
+<td><code>K_fertilizer</code></td>
+<td>Uses K2O if KI is missing</td>
+</tr>
+<tr class="odd">
+<td><code>I.Amount</code></td>
+<td><code>irrigation_amount</code></td>
+<td>Fixed: was incorrectly assigned <code>I.Method</code></td>
+</tr>
+<tr class="even">
+<td><code>I.Method</code></td>
+<td><code>irrigation_method</code></td>
+<td>Added — was missing from original script</td>
+</tr>
+<tr class="odd">
+<td><code>Plant.Density</code></td>
+<td><code>plant_density</code></td>
+<td>Split into <code>seed_density</code> / <code>seed_rate</code> based
+on units</td>
+</tr>
+<tr class="even">
+<td><code>C.Type</code> + <code>C.Amount</code> etc.</td>
+<td><code>herbicide_*</code> / <code>insecticide_*</code> /
+<code>fungicide_*</code> / <code>pesticide_*</code></td>
+<td>Detected from <code>C.Type</code> using <code>grepl</code></td>
+</tr>
+</tbody>
+</table>
+</details>
+<details>
+<summary>
+<strong>Step 4 — Seed density unit standardisation</strong>
+</summary>
+
+<p>ERA stores planting density with a separate units column. The script
+splits into three Carob fields:</p>
+<ul>
+<li><code>seed_density</code> — seeds or kg seed per ha (converted from
+per m² × 10,000 where needed)</li>
+<li><code>seed_rate</code> — kg/ha seeding rate</li>
+<li><code>plant_density</code> — plants per ha (converted from per m² ×
+10,000 where needed)</li>
+</ul>
+<p><strong>Decision:</strong> Once a row is classified into
+<code>seed_density</code> or <code>seed_rate</code>,
+<code>plant_density</code> is set to NA to avoid double-counting. The
+<code>units</code> column is then dropped.</p>
+</details>
+<details>
+<summary>
+<strong>Step 5 — Country name cleaning</strong>
+</summary>
+
+<p>ERA stores some country values as combined strings. The script
+resolves these via a hardcoded <code>ifelse</code> chain:</p>
+<table>
+<thead>
+<tr class="header">
+<th>ERA value</th>
+<th>Resolved to</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>&quot;Benin..Togo&quot;</code></td>
+<td><code>&quot;Benin&quot;</code></td>
+</tr>
+<tr class="even">
+<td><code>&quot;Ghana..Benin&quot;</code></td>
+<td><code>&quot;Ghana&quot;</code></td>
+</tr>
+<tr class="odd">
+<td><code>&quot;Kenya..Kenya&quot;</code></td>
+<td><code>&quot;Kenya&quot;</code></td>
+</tr>
+<tr class="even">
+<td><code>&quot;Drc&quot;</code> / <code>&quot;Congo&quot;</code></td>
+<td><code>&quot;Democratic Republic of Congo&quot;</code></td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p><strong>Known limitation:</strong> Only a subset of multi-country
+strings are handled. Unmatched values pass through unchanged.</p>
+</blockquote>
+</details>
+<details>
+<summary>
+<strong>Step 6 — Intercrop parsing</strong>
+</summary>
+
+<p>ERA stores intercrop species as <code>***</code>-delimited strings
+(e.g. <code>&quot;Maize***Beans***Sorghum&quot;</code>). The script splits these,
+standardises a small number of long scientific names
+(e.g. <code>&quot;Mangifera indica&quot;</code> → <code>&quot;Mangifera&quot;</code>), and
+rejoins with <code>;</code> as the Carob separator.</p>
+</details>
+<details>
+<summary>
+<strong>Step 7 — Organic matter flag</strong>
+</summary>
+
+<p><code>OM_used</code> is set to <code>TRUE</code> if any of
+<code>N_organic</code>, <code>P_organic</code>, or
+<code>K_organic</code> is non-zero. This is a derived binary flag not
+present in the raw ERA data.</p>
+</details>
+<details>
+<summary>
+<strong>Step 8 — Coordinate cleaning</strong>
+</summary>
+
+<p>Latitude and longitude values in ERA sometimes contain multiple
+decimal points (e.g. <code>&quot;1.23.45&quot;</code>). The cleaning pipeline: 1.
+Truncates to 6 characters 2. Removes extra decimal points (keep only the
+first) 3. Applies <code>carobiner::fix_name()</code> to handle encoding
+artefacts 4. Strips trailing dots 5. Converts to numeric</p>
+</details>
+<details>
+<summary>
+<strong>Step 9 — Fertilizer value cleaning</strong>
+</summary>
+
+<p>N, P, and K fertilizer values can contain concatenated strings, NA
+artefacts, and sentinel values. Per nutrient: 1.
+<code>carobiner::fix_name()</code> — fixes encoding 2. Remove
+<code>NA.</code> / <code>.NA</code> artefacts 3. Replace multiple dots
+with spaces 4. Replace ERA sentinel values <code>999</code> /
+<code>999999</code> with <code>NA</code> 5. Extract first
+space-delimited token and convert to numeric</p>
+<blockquote>
+<p><strong>Fixed bug:</strong> The original script used
+<code>substr(..., 1, 3)</code> which truncated values ≥ 1000 (e.g. 1200
+→ 120). Replaced with <code>gsub(&quot;\\s.*&quot;, &quot;&quot;)</code>.</p>
+</blockquote>
+</details>
+<details>
+<summary>
+<strong>Step 10 — Long-to-wide pivot (response variables)</strong>
+</summary>
+
+<p>ERA stores outcome variables in long format. The script pivots to
+wide format per study using <code>proc()</code>, then renames key
+columns:</p>
+<table>
+<thead>
+<tr class="header">
+<th>ERA variable name</th>
+<th>Carob column</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>Crop_Yield</code></td>
+<td><code>yield</code></td>
+</tr>
+<tr class="even">
+<td><code>Soil_Organic_Carbon</code></td>
+<td><code>soil_SOC</code></td>
+</tr>
+<tr class="odd">
+<td><code>Soil_Total_Nitrogen</code></td>
+<td><code>soil_total_N</code></td>
+</tr>
+<tr class="even">
+<td><code>Soil_Nitrogen</code></td>
+<td><code>soil_N</code></td>
+</tr>
+<tr class="odd">
+<td><code>Soil_Organic_Matter</code></td>
+<td><code>soil_SOM</code></td>
+</tr>
+<tr class="even">
+<td><code>Carbon_Dioxide_Emissions</code></td>
+<td><code>soil_CO2</code></td>
+</tr>
+<tr class="odd">
+<td><code>Soil_Organic_Carbon_(Change)</code></td>
+<td><code>soil_ex_SOC</code></td>
+</tr>
+</tbody>
+</table>
+</details>
+<details>
+<summary>
+<strong>Step 11 — Land preparation method harmonisation</strong>
+</summary>
+
+<p>Harmonised from ERA free-text codes to a controlled vocabulary.
+Fallback: if <code>T.Method</code> is missing, <code>Till.Other</code>
+is used.</p>
+<table>
+<thead>
+<tr class="header">
+<th>ERA codes matched</th>
+<th>Carob value</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>CT</code>, <code>CONV</code>, <code>Conventional</code></td>
+<td><code>&quot;conventional&quot;</code></td>
+</tr>
+<tr class="even">
+<td><code>NT</code>, <code>ZT</code>, <code>No-till</code>,
+<code>zero</code></td>
+<td><code>&quot;zero tillage&quot;</code></td>
+</tr>
+<tr class="odd">
+<td><code>MT</code>, <code>Min Till</code></td>
+<td><code>&quot;minimum tillage&quot;</code></td>
+</tr>
+<tr class="even">
+<td><code>RT</code>, <code>reduced</code></td>
+<td><code>&quot;reduced tillage&quot;</code></td>
+</tr>
+<tr class="odd">
+<td><code>Ridge</code>, <code>Ridging</code></td>
+<td><code>&quot;ridge tillage&quot;</code></td>
+</tr>
+<tr class="even">
+<td><code>Hand Hoe</code>, <code>hoe</code></td>
+<td><code>&quot;hoeing&quot;</code></td>
+</tr>
+<tr class="odd">
+<td><code>Plough</code>, <code>Ploughed</code></td>
+<td><code>&quot;ploughing&quot;</code></td>
+</tr>
+<tr class="even">
+<td><code>Basins</code>, <code>BASINS</code></td>
+<td><code>&quot;basins&quot;</code></td>
+</tr>
+<tr class="odd">
+<td><code>puddled plots</code></td>
+<td><code>&quot;puddled&quot;</code></td>
+</tr>
+<tr class="even">
+<td><code>furrow dikes</code></td>
+<td><code>&quot;open furrows&quot;</code></td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p><strong>Known limitation:</strong> Terms not matched pass through
+as-is.</p>
+</blockquote>
+</details>
+<details>
+<summary>
+<strong>Step 12 — Yield part harmonisation</strong>
+</summary>
+
+<table>
+<thead>
+<tr class="header">
+<th>ERA term</th>
+<th>Carob value</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>Grain/Seed</code></td>
+<td><code>&quot;grain&quot;</code></td>
+</tr>
+<tr class="even">
+<td><code>Pods</code> / <code>Nuts</code></td>
+<td><code>&quot;pod&quot;</code></td>
+</tr>
+<tr class="odd">
+<td><code>Tuber/Root</code> / <code>Bulb</code></td>
+<td><code>&quot;roots&quot;</code></td>
+</tr>
+<tr class="even">
+<td><code>Stem/Stalks</code></td>
+<td><code>&quot;stems&quot;</code></td>
+</tr>
+<tr class="odd">
+<td><code>Whole Plant</code> / <code>Stalks+Leaves</code></td>
+<td><code>&quot;aboveground biomass&quot;</code></td>
+</tr>
+<tr class="even">
+<td><code>Biomass</code> / <code>Haulm</code></td>
+<td><code>&quot;biomass&quot;</code></td>
+</tr>
+<tr class="odd">
+<td><code>Corm</code> / <code>Cormel</code> / <code>corn</code></td>
+<td><code>&quot;grain&quot;</code></td>
+</tr>
+<tr class="even">
+<td><code>Unspecified</code> / <code>Cane</code></td>
+<td><code>&quot;none&quot;</code></td>
+</tr>
+</tbody>
+</table>
 </details>
 
 <hr />
