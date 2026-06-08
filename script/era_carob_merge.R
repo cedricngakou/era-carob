@@ -1,9 +1,10 @@
 
-# ERA <-> Carob Audit Script
+# ERA <-> Carob Merge Script
 # Run era_carob.R first — this script requires `dwf` to be in your environment.
 #
-# Task 1: Identify which ERA studies are already in Carob (by DOI)
-# Task 2 & 3: Align ERA to Carob schema and merge
+# Step 1: Identify which ERA studies are already in Carob (by DOI)
+# Step 2: Audit and align ERA columns to the Carob schema
+# Step 3: Merge ERA and Carob into a single unified dataset (`merged`)
 
 library(caramba)
 library(dplyr)

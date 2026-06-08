@@ -16,11 +16,13 @@ Carob is an open agricultural data platform that standardises experimental datas
 
 ## Scripts
 
-### `script/era_carob.R`
-Transforms ERA data into Carob format. Produces `dwf` — a wide-format data frame aligned to the Carob schema.
+| Script | Purpose | Output |
+|--------|---------|--------|
+| `script/era_carob.R` | Transform ERA → Carob format | `dwf` |
+| `script/era_carob_merge.R` | Deduplicate, align schema, merge | `merged` |
+| `script/era_carob_report.R` | Coverage report + visualisations | Plots + JSON |
 
-### `script/era_carob_audit.R`
-Identifies ERA studies already in Carob (by DOI), audits the schema alignment, and merges `dwf` with `carob_index$wide` to produce the combined `merged` dataset.
+Run in order: `era_carob.R` → `era_carob_merge.R` → `era_carob_report.R`
 
 ---
 
@@ -242,6 +244,63 @@ After running `era_carob_audit.R`, the combined **`merged`** dataset contains:
 | Columns | 314 |
 | ERA studies not yet in Carob | 1,507 |
 | Studies already in both | 21 |
+
+---
+
+---
+
+## Pipeline: `era_carob_merge.R` step by step
+
+**Prerequisite:** `dwf` must already be in your R environment (produced by `era_carob.R`).
+
+### Step 1 — Duplicate detection
+
+ERA's `uri` field contains **journal article DOIs** (e.g. `10.1007/s10113-019-01511-w`).
+Carob's `metadata$uri` contains **data repository DOIs** (e.g. `doi:10.18167/DVN1/66Z6JP`) — a completely different identifier for the same study.
+
+Matching is therefore done on `carob_index$metadata$publication`, which holds the journal DOI. Both sides are normalised before matching:
+- Strip `doi:` prefix from Carob
+- Replace `_` with `/` (Carob uses underscores in some DOIs instead of slashes)
+- Lowercase both sides
+
+**Result (as of June 2026):** 21 of 1,528 ERA studies were already in Carob. These are flagged but kept in the merge with `source = "era"` — the Carob row for the same study will have `source = "carob"`.
+
+### Step 2 — Schema alignment
+
+The full Carob schema is taken from `carob_index$wide` (313 columns) — not from a single downloaded dataset.
+
+Alignment steps applied to `dwf`:
+
+| Issue | Fix |
+|-------|-----|
+| `Soil_NO3` and `Soil_NH4` (uppercase) | Dropped — lowercase versions `soil_NO3` / `soil_NH4` already exist |
+| `soil_depth` is a `"upper-lower"` string | Split into numeric `depth_top` and `depth_bottom` |
+| Column literally named `"NA"` | Dropped |
+| Carob columns absent from ERA | Added as `NA` (195 columns) |
+| ERA-only columns not in Carob schema | Dropped (e.g. `seasonal_prep`, `dsign`, `control_T`, economic variables) |
+
+**ERA-only columns dropped** include:
+- Climate: `seasonal_prep`, `total_prec`, `tmax`, `tmin`
+- Economics: `Variable_Cost`, `Gross_Margin`, `Net_Return`, `Benefit_Cost_Ratio_*`, `Labour_*`
+- ERA internal: `dsign`, `control_T`, `id`, `treatment_type`
+- Unmapped outcomes: `Land_Equivalent_Ratio`, `Biomass_Yield`, `Erosion`, `Runoff`, `Biodiversity`
+
+### Step 3 — Merge
+
+`carobiner::bindr` (via `do.call`) row-binds Carob rows first, ERA rows second. A `source` column is added to identify provenance:
+- `"carob"` — original Carob observations
+- `"era"` — ERA observations aligned to Carob schema
+
+**Final `merged` dataset:**
+
+| Property | Value |
+|----------|-------|
+| Total rows | ~482,000 |
+| Columns | 314 |
+| Carob rows | ~238,540 |
+| ERA rows | ~244,094 |
+| Studies | ~1,720 |
+| Countries | 51 |
 
 ---
 

@@ -1,0 +1,6 @@
+"category","n_cols","examples"
+"Economic outcomes",28,"Variable_Cost, Gross_Margin, Benefit_Cost_Ratio_(GMVC)"
+"ERA climate fields",2,"total_prec, seasonal_prep"
+"ERA internal fields",4,"dsign, control_T, treatment_type, id"
+"Unmapped outcomes",47,"Land_Equivalent_Ratio, Biomass_Yield, Crop_Residue_Yield"
+"Other",27,"uri, year, herbicide_method"
