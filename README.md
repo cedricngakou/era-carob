@@ -417,7 +417,7 @@ added (`"carob"` / `"era"`).
 ------------------------------------------------------------------------
 
 ## Known limitations and future work
-
+- wireframe https://htmlpreview.github.io/?https://github.com/cedricngakou/era-carob/blob/main/wireframe/index.html
 - Country harmonisation covers only a subset of multi-country ERA
   strings
 - `land_prep_method` and `yield_part` use hardcoded `ifelse` chains —
