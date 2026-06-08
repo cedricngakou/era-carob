@@ -101,3 +101,4 @@ merged$source <- c(
 
 cat("Total rows after merge:", nrow(merged), "\n")
 cat("Columns:               ", ncol(merged), "\n")
+
