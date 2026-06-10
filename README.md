@@ -33,8 +33,7 @@ practices, and yield outcomes.
 ## What is Carob?
 
 Carob is an open agricultural data platform that standardises
-experimental datasets into a common schema (~238,000 observations, ~197
-datasets).
+experimental datasets into a common schema (~238,000 observations,*check number of datasets).
 
 ------------------------------------------------------------------------
 
