@@ -48,11 +48,6 @@ datasets).
 
 Run in order: `era_carob.R` → `era_carob_merge.R` → `era_carob_report.R`
 
-Then re-knit this file to update the README:
-
-``` r
-rmarkdown::render("README.Rmd")
-```
 
 ------------------------------------------------------------------------
 
