@@ -23,6 +23,8 @@ coverage  <- tryCatch(read.csv("report/coverage_summary.csv"),      error = func
 
 # ERA → Carob: Transforming ERA Agronomic Data into the Carob Standard Format
 
+> 🌐 **[View the interactive dashboard wireframe](https://htmlpreview.github.io/?https://github.com/cedricngakou/era-carob/blob/main/wireframe/index.html)**
+
 This repository contains R scripts that load the ERA agronomic database, reformat it to match the [Carob](https://carob-data.org) data standard, and merge it with the existing Carob dataset to create a unified meta-analysis resource.
 
 ---
