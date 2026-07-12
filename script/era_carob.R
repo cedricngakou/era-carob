@@ -142,7 +142,8 @@ d <- data.frame(
    reference= df$B.Author.Last,
    dataset_id= df$B.Code,
    location= df$Site.ID,
-   on_farm= df$Site.Type,
+   on_farm= grepl("On-farm", tolower(df$Site.Type)),
+   is_survey = grepl("survey", tolower(df$Site.Type)),
    country= df$Country,
    latitude= substr(df$Site.LatD, 1, 6),
    longitude= substr(df$Site.LonD,1, 6),
@@ -163,7 +164,8 @@ d <- data.frame(
    crop= df$P.Product,
    harvest_date= df$PD.Harvest.Start,
    harvest_end= df$PD.Harvest.End,
-   planting_date= df$PD.Plant.Start,
+   planting_date= ifelse(grepl("Planting",  df$PD.Plant.Variable), df$PD.Plant.Start, NA_character_) ,
+   transplanting_date = ifelse(grepl("Transplanting",  df$PD.Plant.Variable), df$PD.Plant.Start, NA_character_) ,
    planting_end= df$PD.Plant.End,
    tillage= df$Till.Level.Name,
    land_prep_method= ifelse(is.na(df$T.Method)& !is.na(df$Till.Other), df$Till.Other, df$T.Method),
@@ -174,6 +176,9 @@ d <- data.frame(
    rep= ifelse(is.na(df$T.Reps) & !is.na(df$ED.Reps), df$ED.Reps, df$T.Reps),
    #df$T.Residue.Prev,
    variety= ifelse(is.na(df$V.Var) & !is.na(df$ED.Variety), df$ED.Variety, df$V.Var),
+   variety_traits = ifelse(is.na(df$V.Trait1) & !is.na(df$V.Trait2), df$V.Trait2,
+                    ifelse(is.na(df$V.Trait2) & !is.na(df$V.Trait3), df$V.Trait3, df$V.Trait1)), 
+   variety_type = df$V.Type,
    maturity_days= df$V.Maturity,
    N_organic= df$F.NO,
    P_organic= df$F.PO,
@@ -374,8 +379,8 @@ dw <- lapply(ff, function(y) proc(y, d))
 
 dwf <- do.call(carobiner::bindr, dw)
 
-i <- grep(paste("Crop_Yield", "Soil_Organic_Carbon", "Soil_Total_Nitrogen", "Soil_Nitrogen", "Soil_Organic_Matter", "Carbon_Dioxide_Emissions", "Soil_Organic_Carbon_(Change)", sep = "|"), names(dwf))
-names(dwf)[i] <- c("yield","soil_SOC", "soil_total_N", "soil_N", "soil_SOM", "soil_CO2", "soil_ex_SOC")
+i <- grepl(paste("Crop_Yield", "Soil_Organic_Carbon", "Soil_Total_Nitrogen", "Soil_Nitrogen", "Soil_Organic_Matter", "Carbon_Dioxide_Emissions", "Soil_Organic_Carbon_\\(Change\\)", "CO2_Equivalent_Emissions", "Variable_Cost_per_Unit_Product", "Aboveground_Biomass", "Pest_&_Pathogen_\\(Losses\\)", "Effective_Cation_Exchange_Capacity", "Methane_Emissions", "Nitrous_Oxide_Emissions", "Cation_Exchange_Capacity", "Erosion", "Labour_Cost", "Labour_Person_Hours", "Net_Return", sep = "|"), names(dwf))
+names(dwf)[i] <- c("yield","soil_SOC", "soil_total_N", "soil_N", "soil_SOM", "CO2_emission", "soil_ex_SOC", "CO2_eq_emission", "variable_cost", "fwy_total", "pest_severity", "soil_CEC_eff", "CH4_emission", "N2O_emission", "soil_CEC", "soil_erosion", "labour_Cost", "labour", "net_benefit")
 
 
 ### fixing tillage
@@ -403,6 +408,7 @@ dwf$land_prep_method <- tolower(ifelse(grepl("CT|CONV|ConvTill|conv|CON|Conserva
 
 
 dwf$tillage <- NULL
+
 
 ### Yield part 
 
