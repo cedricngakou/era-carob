@@ -1,7 +1,8 @@
 ERA × Carob
 ================
 
-  <img src="imge/1. SFP Main Logo.png" alt="Workflow" width="400">This research was conducted as part of the CGIAR [Sustainable Farming Science Program](https://www.cgiar.org/cgiar-research-portfolio-2025-2030/sustainable-farming)
+  <img src="imge/1. SFP Main Logo.png" alt="Workflow" width="400">
+  This research was conducted as part of the CGIAR [Sustainable Farming Science Program](https://www.cgiar.org/cgiar-research-portfolio-2025-2030/sustainable-farming)
 This research is being implemented by CGIAR researchers from IITA and The Alliance of Bioversity and CIAT.
 
 
