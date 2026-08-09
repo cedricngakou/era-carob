@@ -1,7 +1,7 @@
 ## ERA TO CAROB FORMAT
 
 # Run once to install dependencies:
-# install.packages(c("s3fs", "arrow", "terra", "remotes"), type = "binary")
+#install.packages(c("s3fs", "arrow", "terra", "remotes"), type = "binary")
 # remotes::install_github("carob-data/caramba")
 
 library(tidyr)
@@ -128,8 +128,10 @@ names(ds)[i] <-  c("soil_clay","soil_silt","soil_sand", "soil_P_available")
 
 rb <- merge(rb, ds, by= intersect(names(rb), names(ds)), all= TRUE)
 rb <- rb[!grepl("All Sites", rb$Site.ID),]
-### keep only rows with crop
-df <- rb[!grepl("Animal", rb$Product.Type),]
+### keep only rows with crop and animal (livestoks)
+#df <- rb[!grepl("Animal", rb$Product.Type),]
+df <- rb[!grepl("^NA\\*\\*NA$", rb$Product.Type),]
+
 #df$control <- ifelse(grepl("Yes", substr(df$T.Control, 1, 3)), TRUE, FALSE)
 #df$treatment <- ifelse(is.na(df$T.Name) & !is.na(df$F.Level.Name), df$F.Level.Name, df$T.Name)
 
@@ -234,7 +236,8 @@ d <- data.frame(
    soil_pH= df$soil_pH,
    soil_EC= df$soil_EC,
    soil_bd= df$soil_BD,
-   soil_P_total= df$soil_TP
+   soil_P_total= df$soil_TP,
+   product_type = df$Product.Type
 )
 
 
@@ -296,6 +299,31 @@ d$intercrops <- tolower(ifelse(!is.na(inter$V3) & !is.na(inter$V4), paste(inter$
 i <- which(d$K_organic!=0 | d$N_organic!=0 |d$P_organic!=0)
 d$OM_used <- FALSE
 d$OM_used[i] <- TRUE
+
+#### fixing crop names
+crop <- strsplit(d$crop, "-|\\.\\.")
+max_len <- max(sapply(crop, length))
+split_padded <- lapply(crop, function(x) {
+   length(x) <- max_len
+   return(x)
+})
+crop <- as.data.frame(do.call(rbind, split_padded), stringsAsFactors = FALSE)
+d$crop <- tolower(crop$V1)
+P <- carobiner:::fix_name(d$crop)
+P <- gsub("tephrosia vogelii", "tephrosia", P)
+P <- gsub("macadamia", "macadamia nut", P)
+P <- gsub("gliricidia sepium", "gliricidia", P)
+P <- gsub("crotalaria grahamiana", "crotalaria", P)
+P <- gsub("fallow", "none", P)
+P <- gsub("bambara nut", "bambara groundnut", P)
+P <- gsub("crotalaria spectabilis", "crotalaria", P)
+P <- gsub("brachiaria hybrid", "brachiaria", P)
+P <- gsub("cooking banana", "banana", P)
+P <- gsub("other millet", "millet", P)
+P <- gsub("panicum antidotale", "proso millet", P)
+P <- gsub("ethiopian eggplant", "eggplant", P)
+P <- gsub("passionfruit", "passion fruit", P)
+d$crop <- P
 
 ## Fixing longitude and latitude 
 
@@ -408,6 +436,7 @@ dwf$land_prep_method <- tolower(ifelse(grepl("CT|CONV|ConvTill|conv|CON|Conserva
 
 
 dwf$tillage <- NULL
+
 
 
 ### Yield part 
