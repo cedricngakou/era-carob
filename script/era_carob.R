@@ -338,6 +338,15 @@ P <- gsub("brachiaria brizantha", "brachiaria", P)
 P <- gsub("crotalaria ochroleuca", "crotalaria", P)
 P <- gsub("purple vetch", "vetch", P)
 P <- gsub("crotalaria juncea", "sunn hemp", P)
+P <- gsub("gliricidia sp\\.", "gliricidia", P)
+P <- gsub("ayocote bean", "runner bean", P)
+P <- gsub("brachiaria decumbens", "brachiaria", P)
+P <- gsub("helichrysum petiolare", "licorice", P)
+P <- gsub("ornithopus sativus", "serradella", P)
+P <- gsub("artichokes", "jerusalem artichoke", P)
+P <- gsub("acacia sp", "acacia", P)
+P <- gsub("acacia auriculiformis", "earleaf acacia", P)
+P <- gsub("flemingia sp.", "flemingia", P)
 d$crop <- P
 
 ## Fixing longitude and latitude 
